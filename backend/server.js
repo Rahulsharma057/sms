@@ -17,6 +17,7 @@ connectDB();
 /* =========================
    CORS CONFIGURATION
 ========================= */
+
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "https://sms-ivory-pi.vercel.app",
@@ -24,6 +25,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
 ].filter(Boolean);
+
 console.log("Allowed CORS origins:", allowedOrigins);
 
 app.use(
@@ -32,12 +34,32 @@ app.use(
       console.log("Request Origin:", origin);
 
       // Allow requests without Origin
-      // (Postman, server-to-server, health checks, etc.)
+      // Postman, server-to-server, health checks, etc.
       if (!origin) {
         return callback(null, true);
       }
 
+      // Exact allowed origins
       if (allowedOrigins.includes(origin)) {
+        console.log("✅ CORS allowed:", origin);
+        return callback(null, true);
+      }
+
+      /*
+       * Allow Vercel deployment URLs.
+       *
+       * This handles URLs such as:
+       * https://sms-ivory-pi.vercel.app
+       * https://sms-xxxxx-rahulsharma3-9031s-projects.vercel.app
+       *
+       * So a new Vercel deployment URL won't
+       * immediately cause a CORS error.
+       */
+      if (
+        origin.startsWith("https://sms-") &&
+        origin.endsWith(".vercel.app")
+      ) {
+        console.log("✅ Vercel CORS allowed:", origin);
         return callback(null, true);
       }
 
