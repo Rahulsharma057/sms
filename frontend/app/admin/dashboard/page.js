@@ -198,7 +198,7 @@ function AdminDashboardInner() {
                     <TableCell>Date</TableCell>
                     <TableCell>Teacher</TableCell>
                     <TableCell>Centre/Batch</TableCell>
-                    <TableCell>Shift</TableCell>
+           {/*          <TableCell>Shift</TableCell> */}
                     <TableCell>Urgent</TableCell>
                   </TableRow>
                 </TableHead>
@@ -215,7 +215,7 @@ function AdminDashboardInner() {
                         </Stack>
                       </TableCell>
                       <TableCell>{r.centreBatch || "—"}</TableCell>
-                      <TableCell>{r.shiftTiming || "—"}</TableCell>
+                      {/* <TableCell>{r.shiftTiming || "—"}</TableCell> */}
                       <TableCell>
                         {r.urgentMatters
                           ? <Chip size="small" color="error" label="Yes" sx={{ fontWeight: 600 }} />
@@ -271,9 +271,9 @@ function AdminDashboardInner() {
                 <Grid item xs={6}>
                   <DetailRow label="Duty officer" value={selectedReport.dutyOfficerName} />
                 </Grid>
-                <Grid item xs={6}>
+               {/*  <Grid item xs={6}>
                   <DetailRow label="Shift" value={selectedReport.shiftTiming} />
-                </Grid>
+                </Grid> */}
                 <Grid item xs={6}>
                   <DetailRow label="Centre/Batch" value={selectedReport.centreBatch} />
                 </Grid>

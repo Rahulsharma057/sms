@@ -584,7 +584,7 @@ function AllReportsInner() {
                     <TableCell>Date</TableCell>
                     <TableCell>Teacher</TableCell>
                     <TableCell>Centre/Batch</TableCell>
-                    <TableCell>Shift</TableCell>
+                {/*     <TableCell>Shift</TableCell> */}
                     <TableCell>Urgent</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -605,7 +605,7 @@ function AllReportsInner() {
                         <TableCell>{r.date}</TableCell>
                         <TableCell>{r.teacher?.name}</TableCell>
                         <TableCell>{r.centreBatch || "-"}</TableCell>
-                        <TableCell>{r.shiftTiming || "-"}</TableCell>
+                 {/*        <TableCell>{r.shiftTiming || "-"}</TableCell> */}
                         <TableCell>
                           {urgent ? (
                             <Chip size="small" color="error" label="Yes" />
@@ -735,7 +735,7 @@ function AllReportsInner() {
                             {r.teacher?.name || "-"}
                           </Typography>
                         </Stack>
-                        <Stack
+                        {/* <Stack
                           direction="row"
                           alignItems="center"
                           spacing={0.8}
@@ -746,7 +746,7 @@ function AllReportsInner() {
                           <Typography variant="body2">
                             {r.shiftTiming || "-"}
                           </Typography>
-                        </Stack>
+                        </Stack> */}
                         <Typography
                           variant="body2"
                           color="text.secondary"
@@ -884,17 +884,17 @@ function AllReportsInner() {
                         {selectedReport.dutyOfficerName || "-"}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                 {/*    <Grid item xs={6}>
                       <Typography variant="caption" color="text.secondary">
                         SHIFT / TIMING
                       </Typography>
                       <Typography fontWeight={600}>
                         {selectedReport.shiftTiming || "-"}
                       </Typography>
-                    </Grid>
+                    </Grid> */}
                     <Grid item xs={6}>
                       <Typography variant="caption" color="text.secondary">
-                        CENTRE / BATCH
+                        Orgnization Name
                       </Typography>
                       <Typography fontWeight={600}>
                         {selectedReport.centreBatch || "-"}
@@ -958,7 +958,7 @@ function AllReportsInner() {
                       overflow: "hidden",
                     }}
                   >
-                    <Box
+              {/*       <Box
                       sx={{
                         px: 2,
                         py: 1.2,
@@ -980,7 +980,7 @@ function AllReportsInner() {
                           ({section.timing})
                         </Typography>
                       </Typography>
-                    </Box>
+                    </Box> */}
                     <Box sx={{ px: 1.5 }}>
                       {(selectedReport[section.key] || []).map((item, i) => (
                         <Box

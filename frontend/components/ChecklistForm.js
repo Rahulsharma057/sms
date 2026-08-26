@@ -90,8 +90,8 @@ const createForm = (userName) => ({
 
 const REQUIRED_TEXT_FIELDS = [
   "dutyOfficerName",
-  "shiftTiming",
-  "centreBatch",
+  // "shiftTiming",
+  // "centreBatch",
   "positiveObservations",
   "hygieneLapses",
   "maintenanceFollowUp",
@@ -369,7 +369,18 @@ export default function ChecklistForm() {
                 fullWidth
                 required
                 value={form.date}
-                onChange={(e) => updateForm("date", e.target.value)}
+                inputProps={{
+                  min: getToday(),
+                  max: getToday(),
+                }}
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  // Sirf aaj ki date allow
+                  if (value === getToday()) {
+                    updateForm("date", value);
+                  }
+                }}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
@@ -384,7 +395,7 @@ export default function ChecklistForm() {
                 helperText={fieldErrors.dutyOfficerName}
               />
             </Grid>
-            <Grid item xs={12} sm={3}>
+            {/*  <Grid item xs={12} sm={3}>
               <TextField
                 label="Shift Start"
                 type="time"
@@ -408,13 +419,13 @@ export default function ChecklistForm() {
                 error={!!fieldErrors.shiftTiming && !shiftEnd}
                 helperText={fieldErrors.shiftTiming}
               />
-            </Grid>
+            </Grid> */}
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Centre / Batch covered"
                 placeholder="e.g. SDC Khurja"
                 fullWidth
-                required
+                //    required
                 value={form.centreBatch}
                 onChange={(e) => updateForm("centreBatch", e.target.value)}
                 error={!!fieldErrors.centreBatch}
@@ -487,7 +498,7 @@ export default function ChecklistForm() {
               overflow: "hidden",
             }}
           >
-            <Box
+            {/*  <Box
               sx={{
                 px: { xs: 1.5, sm: 2.5 },
                 py: 1.5,
@@ -522,7 +533,7 @@ export default function ChecklistForm() {
                   </Typography>
                 </Box>
               </Stack>
-            </Box>
+            </Box> */}
 
             <Box sx={{ px: { xs: 1.2, sm: 2 } }}>
               {section.items.map((label) => {

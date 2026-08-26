@@ -90,7 +90,7 @@ function TeacherDashboardInner() {
               <TableHead>
                 <TableRow>
                   <TableCell>Date</TableCell>
-                  <TableCell>Shift</TableCell>
+     {/*              <TableCell>Shift</TableCell> */}
                   <TableCell>Centre/Batch</TableCell>
                   <TableCell>Urgent Matters</TableCell>
                 </TableRow>
@@ -99,7 +99,7 @@ function TeacherDashboardInner() {
                 {reports.map((r) => (
                   <TableRow key={r._id} hover>
                     <TableCell>{r.date}</TableCell>
-                    <TableCell>{r.shiftTiming || "-"}</TableCell>
+                   {/*  <TableCell>{r.shiftTiming || "-"}</TableCell> */}
                     <TableCell>{r.centreBatch || "-"}</TableCell>
                     <TableCell>
                       {r.urgentMatters ? <Chip size="small" color="warning" label="Yes" /> : "-"}

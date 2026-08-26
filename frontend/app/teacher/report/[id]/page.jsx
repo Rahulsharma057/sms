@@ -78,10 +78,10 @@ export default function ReportViewPage() {
               <Typography variant="caption" color="text.secondary">Name of Duty Officer</Typography>
               <Typography fontWeight={600}>{report.dutyOfficerName}</Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+         {/*    <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary">Shift / Timing</Typography>
               <Typography fontWeight={600}>{report.shiftTiming}</Typography>
-            </Grid>
+            </Grid> */}
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary">Centre / Batch covered</Typography>
               <Typography fontWeight={600}>{report.centreBatch}</Typography>
@@ -94,10 +94,10 @@ export default function ReportViewPage() {
           <Paper key={section.key} elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 2.5, overflow: "hidden" }}>
             <Box sx={{ px: { xs: 1.5, sm: 2.5 }, py: 1.5, bgcolor: "#faf5ff", borderBottom: "1px solid #f1f5f9" }}>
               <Stack direction="row" alignItems="center" gap={1.5}>
-                <Box sx={{ width: 30, height: 30, borderRadius: "50%", bgcolor: "#7e22ce", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+               {/*  <Box sx={{ width: 30, height: 30, borderRadius: "50%", bgcolor: "#7e22ce", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
                   {sectionIndex + 1}
-                </Box>
-                <Typography fontWeight={800} fontSize="0.95rem">{section.title}</Typography>
+                </Box> */}
+              {/*   <Typography fontWeight={800} fontSize="0.95rem">{section.title}</Typography> */}
               </Stack>
             </Box>
 
