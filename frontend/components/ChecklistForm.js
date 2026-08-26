@@ -22,6 +22,7 @@ import {
   Visibility,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -127,7 +128,8 @@ export default function ChecklistForm() {
   const [shiftEnd, setShiftEnd] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+
+  // still used for the inline "tick everything / fill everything" validation banner
   const [error, setError] = useState("");
 
   // undefined = checking, null = not submitted today, object = already submitted
@@ -171,7 +173,6 @@ export default function ChecklistForm() {
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    setMessage("");
     setError("");
   };
 
@@ -179,22 +180,21 @@ export default function ChecklistForm() {
     setChecks((prev) =>
       prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
     );
-    setMessage("");
     setError("");
   };
 
   const submit = async (e) => {
     e.preventDefault();
     setTouched(true);
-    setMessage("");
     setError("");
 
     if (!isValid) {
-      setError(
-        !allChecksTicked
-          ? "Please tick every checklist item before submitting."
-          : "Please fill in all required fields.",
-      );
+      const validationMessage = !allChecksTicked
+        ? "Please tick every checklist item before submitting."
+        : "Please fill in all required fields.";
+
+      setError(validationMessage);
+      toast.error(validationMessage);
       return;
     }
 
@@ -227,19 +227,21 @@ export default function ChecklistForm() {
         countersignedBy: form.countersignedBy,
       });
 
-      setMessage("Thank you for your contribution!");
+      toast.success("Thank you for your contribution!");
       setTodayReport(data);
       setTimeout(() => router.push("/teacher/dashboard"), 900);
     } catch (err) {
       if (err?.response?.status === 409) {
-        setError(
+        const conflictMessage =
           err?.response?.data?.message ||
-            "A report for this date has already been submitted.",
-        );
+          "A report for this date has already been submitted.";
+
+        toast.error(conflictMessage);
+
         if (err?.response?.data?.report)
           setTodayReport(err.response.data.report);
       } else {
-        setError(err?.response?.data?.message || "Could not save report.");
+        toast.error(err?.response?.data?.message || "Could not save report.");
       }
     } finally {
       setSaving(false);
@@ -344,11 +346,6 @@ export default function ChecklistForm() {
         {error && (
           <Alert severity="error" onClose={() => setError("")}>
             {error}
-          </Alert>
-        )}
-        {message && (
-          <Alert severity="success" onClose={() => setMessage("")}>
-            {message}
           </Alert>
         )}
 

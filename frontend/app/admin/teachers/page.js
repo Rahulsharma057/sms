@@ -39,7 +39,10 @@ import {
   MailOutline,
   LocationOn,
   GroupsOutlined,
+  Edit,
+  DeleteOutline,
 } from "@mui/icons-material";
+import { toast } from "react-toastify";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
 import api from "../../../lib/api";
@@ -64,20 +67,36 @@ function initials(name = "") {
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
+const emptyForm = { name: "", email: "", password: "", centre: "" };
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function AdminTeachersInner() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  /* ADD */
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    centre: "",
-  });
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [emailFieldError, setEmailFieldError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  /* EDIT */
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTeacher, setEditTeacher] = useState(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editError, setEditError] = useState("");
+  const [editEmailFieldError, setEditEmailFieldError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  /* DELETE */
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [search, setSearch] = useState("");
   const [view, setView] = useState(null); // null = follow screen size, else user override
 
@@ -88,25 +107,208 @@ function AdminTeachersInner() {
     api
       .get("/users/teachers")
       .then((res) => setTeachers(res.data))
+      .catch(() => toast.error("Could not load teachers."))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
   }, []);
 
+  /* =====================================================
+     DUPLICATE EMAIL CHECK (client-side)
+     excludeId: pass the teacher's own id while editing so
+     they aren't flagged as a duplicate of themselves.
+  ===================================================== */
+
+  const isEmailTaken = (email, excludeId = null) => {
+    const normalized = email.trim().toLowerCase();
+
+    return teachers.some(
+      (t) =>
+        t.email?.toLowerCase() === normalized &&
+        String(t._id) !== String(excludeId),
+    );
+  };
+
+  /* =====================================================
+     CREATE
+  ===================================================== */
+
   const handleCreate = async () => {
     setError("");
+    setEmailFieldError("");
+
+    if (!form.name || !form.email || !form.password) {
+      const msg = "Name, email and password are required.";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(form.email.trim())) {
+      const msg = "Please enter a valid email address.";
+      setError(msg);
+      setEmailFieldError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (isEmailTaken(form.email)) {
+      const msg = "A teacher with this email already exists.";
+      setError(msg);
+      setEmailFieldError(msg);
+      toast.error(msg);
+      return;
+    }
+
     try {
+      setSaving(true);
+
       await api.post("/users", form);
+
       setOpen(false);
-      setForm({ name: "", email: "", password: "", centre: "" });
+      setForm(emptyForm);
+
+      toast.success("Teacher account created.");
+
       load();
     } catch (err) {
-      setError(
-        err?.response?.data?.message || "Could not create teacher account.",
-      );
+      const msg =
+        err?.response?.data?.message || "Could not create teacher account.";
+
+      // Backend is still the source of truth — if it comes back
+      // with a duplicate-email error (race condition, stale list,
+      // etc.) surface it the same way as the client-side check.
+      if (/email/i.test(msg)) {
+        setEmailFieldError(msg);
+      }
+
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
+
+  /* =====================================================
+     EDIT
+  ===================================================== */
+
+  const openEdit = (teacher) => {
+    setEditTeacher(teacher);
+
+    setEditForm({
+      name: teacher.name || "",
+      email: teacher.email || "",
+      password: "",
+      centre: teacher.centre || "",
+    });
+
+    setEditError("");
+    setEditEmailFieldError("");
+    setEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    if (editSaving) return;
+
+    setEditOpen(false);
+    setEditTeacher(null);
+    setEditForm(emptyForm);
+    setEditError("");
+    setEditEmailFieldError("");
+  };
+
+  const handleUpdate = async () => {
+    if (!editTeacher) return;
+
+    setEditError("");
+    setEditEmailFieldError("");
+
+    if (!editForm.name || !editForm.email) {
+      const msg = "Name and email are required.";
+      setEditError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(editForm.email.trim())) {
+      const msg = "Please enter a valid email address.";
+      setEditError(msg);
+      setEditEmailFieldError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (isEmailTaken(editForm.email, editTeacher._id)) {
+      const msg = "Another teacher is already using this email.";
+      setEditError(msg);
+      setEditEmailFieldError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    try {
+      setEditSaving(true);
+
+      const payload = {
+        name: editForm.name,
+        email: editForm.email,
+        centre: editForm.centre,
+      };
+
+      // Only send a password if the admin actually typed a new one.
+      if (editForm.password) {
+        payload.password = editForm.password;
+      }
+
+      await api.put(`/users/${editTeacher._id}`, payload);
+
+      toast.success("Teacher updated successfully.");
+
+      closeEdit();
+      load();
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Could not update teacher.";
+
+      if (/email/i.test(msg)) {
+        setEditEmailFieldError(msg);
+      }
+
+      setEditError(msg);
+      toast.error(msg);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  /* =====================================================
+     DELETE
+  ===================================================== */
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      setDeleting(true);
+
+      await api.delete(`/users/${deleteTarget._id}`);
+
+      toast.success(`${deleteTarget.name} has been removed.`);
+
+      setTeachers((prev) => prev.filter((t) => t._id !== deleteTarget._id));
+
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not delete teacher.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /* =====================================================
+     TOGGLE ACTIVE
+  ===================================================== */
 
   const toggleActive = async (id) => {
     setTeachers((prev) =>
@@ -115,6 +317,7 @@ function AdminTeachersInner() {
     try {
       await api.patch(`/users/${id}/toggle-active`);
     } catch {
+      toast.error("Could not update status. Reverting.");
       load(); // revert on failure
     }
   };
@@ -275,6 +478,7 @@ function AdminTeachersInner() {
                     <TableCell>Centre</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Active</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -326,6 +530,31 @@ function AdminTeachersInner() {
                             onChange={() => toggleActive(t._id)}
                           />
                         </Tooltip>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          justifyContent="flex-end"
+                        >
+                          <Tooltip title="Edit teacher">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEdit(t)}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete teacher">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => setDeleteTarget(t)}
+                            >
+                              <DeleteOutline fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -406,16 +635,38 @@ function AdminTeachersInner() {
                     {t.centre || "No centre assigned"}
                   </Typography>
                 </Stack>
+
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button
+                    size="small"
+                    startIcon={<Edit fontSize="small" />}
+                    onClick={() => openEdit(t)}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<DeleteOutline fontSize="small" />}
+                    onClick={() => setDeleteTarget(t)}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Delete
+                  </Button>
+                </Stack>
               </Paper>
             ))}
           </Box>
         )}
       </Container>
 
-      {/* Add teacher dialog */}
+      {/* =====================================================
+          ADD TEACHER DIALOG
+      ===================================================== */}
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => !saving && setOpen(false)}
         maxWidth="xs"
         fullWidth
       >
@@ -436,7 +687,12 @@ function AdminTeachersInner() {
             type="email"
             fullWidth
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, email: e.target.value });
+              setEmailFieldError("");
+            }}
+            error={!!emailFieldError}
+            helperText={emailFieldError}
           />
           <TextField
             label="Temporary password"
@@ -452,15 +708,121 @@ function AdminTeachersInner() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpen(false)} sx={{ textTransform: "none" }}>
+          <Button
+            onClick={() => setOpen(false)}
+            disabled={saving}
+            sx={{ textTransform: "none" }}
+          >
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleCreate}
+            disabled={saving}
             sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
           >
-            Create
+            {saving ? "Creating…" : "Create"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* =====================================================
+          EDIT TEACHER DIALOG
+      ===================================================== */}
+      <Dialog open={editOpen} onClose={closeEdit} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Edit teacher</DialogTitle>
+        <DialogContent
+          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
+        >
+          {editError && <Alert severity="error">{editError}</Alert>}
+          <TextField
+            label="Full name"
+            fullWidth
+            autoFocus
+            value={editForm.name}
+            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+          />
+          <TextField
+            label="Email"
+            type="email"
+            fullWidth
+            value={editForm.email}
+            onChange={(e) => {
+              setEditForm({ ...editForm, email: e.target.value });
+              setEditEmailFieldError("");
+            }}
+            error={!!editEmailFieldError}
+            helperText={editEmailFieldError}
+          />
+          <TextField
+            label="New password"
+            placeholder="Leave blank to keep current password"
+            fullWidth
+            value={editForm.password}
+            onChange={(e) =>
+              setEditForm({ ...editForm, password: e.target.value })
+            }
+          />
+          <TextField
+            label="Centre (optional)"
+            fullWidth
+            value={editForm.centre}
+            onChange={(e) =>
+              setEditForm({ ...editForm, centre: e.target.value })
+            }
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={closeEdit}
+            disabled={editSaving}
+            sx={{ textTransform: "none" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleUpdate}
+            disabled={editSaving}
+            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
+          >
+            {editSaving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* =====================================================
+          DELETE CONFIRMATION DIALOG
+      ===================================================== */}
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Delete teacher</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Are you sure you want to permanently delete{" "}
+            <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteTarget(null)}
+            disabled={deleting}
+            sx={{ textTransform: "none" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDelete}
+            disabled={deleting}
+            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
+          >
+            {deleting ? "Deleting…" : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
