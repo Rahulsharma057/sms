@@ -17,14 +17,13 @@ connectDB();
 /* =========================
    CORS CONFIGURATION
 ========================= */
-
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "https://sms-ivory-pi.vercel.app",
+  "https://sms-5umg175jc-rahulsharma3-9031s-projects.vercel.app",
   "http://localhost:3000",
   "http://localhost:3001",
 ].filter(Boolean);
-
 console.log("Allowed CORS origins:", allowedOrigins);
 
 app.use(
