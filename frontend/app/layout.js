@@ -1,0 +1,19 @@
+import Providers from "./providers";
+
+export const metadata = {
+  title: "Duty Officer Checklist System",
+  description: "Daily inspection checklist, reports & task management",
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body style={{ margin: 0 }}>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
