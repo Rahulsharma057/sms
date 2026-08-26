@@ -1,4 +1,5 @@
 require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -13,39 +14,105 @@ const app = express();
 
 connectDB();
 
+/* =========================
+   CORS CONFIGURATION
+========================= */
+
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://sms-ivory-pi.vercel.app",
   "http://localhost:3000",
   "http://localhost:3001",
 ].filter(Boolean);
 
+console.log("Allowed CORS origins:", allowedOrigins);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      console.log("Request Origin:", origin);
+
+      // Allow requests without Origin
+      // (Postman, server-to-server, health checks, etc.)
+      if (!origin) {
+        return callback(null, true);
       }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.error("❌ CORS blocked:", origin);
+
+      return callback(
+        new Error(`Not allowed by CORS: ${origin}`)
+      );
     },
+
     credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
   })
 );
+
+/* =========================
+   MIDDLEWARE
+========================= */
+
 app.use(express.json());
 app.use(cookieParser());
 
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+/* =========================
+   HEALTH CHECK
+========================= */
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "SMS backend is running",
+  });
+});
+
+/* =========================
+   ROUTES
+========================= */
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/tasks", taskRoutes);
 
-// basic error handler
+/* =========================
+   ERROR HANDLER
+========================= */
+
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ message: err.message || "Server error" });
+  console.error("Server Error:", err);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Server error",
+  });
 });
 
+/* =========================
+   SERVER
+========================= */
+
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
