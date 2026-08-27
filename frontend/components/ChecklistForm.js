@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -7,7 +7,6 @@ import {
   Chip,
   CircularProgress,
   Checkbox,
-  Divider,
   Grid,
   LinearProgress,
   Paper,
@@ -20,6 +19,7 @@ import {
   Description,
   Save,
   Visibility,
+  DeleteOutline,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
@@ -71,15 +71,18 @@ const createChecks = () =>
     section.items.map((label) => ({ label, checked: false, remark: "" })),
   );
 
-const getToday = () => new Date().toISOString().slice(0, 10);
-
-// "08:30" -> "0830"
-const toHHMM = (timeStr) => (timeStr ? timeStr.replace(":", "") : "");
+// IST-correct "today" — server/browser UTC clock ko IST (UTC+5:30) mein shift karke date nikalta hai.
+// Plain new Date().toISOString() raat 12:00–5:30 AM IST ke beech pichle din ki date de deta tha.
+const getToday = () => {
+  const now = new Date();
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  return ist.toISOString().slice(0, 10);
+};
 
 const createForm = (userName) => ({
   date: getToday(),
   dutyOfficerName: userName || "",
-  shiftTiming: "",
   centreBatch: "",
   positiveObservations: "",
   hygieneLapses: "",
@@ -91,8 +94,6 @@ const createForm = (userName) => ({
 
 const REQUIRED_TEXT_FIELDS = [
   "dutyOfficerName",
-  // "shiftTiming",
-  // "centreBatch",
   "positiveObservations",
   "hygieneLapses",
   "maintenanceFollowUp",
@@ -101,17 +102,7 @@ const REQUIRED_TEXT_FIELDS = [
   "countersignedBy",
 ];
 
-const FIELD_LABELS = {
-  dutyOfficerName: "Name of Duty Officer",
-  shiftTiming: "Shift / Timing",
-  centreBatch: "Centre / Batch covered",
-  positiveObservations: "Major positive observations",
-  hygieneLapses: "Cleanliness / hygiene lapses noted",
-  maintenanceFollowUp: "Maintenance items needing follow-up action",
-  urgentMatters: "Urgent matters",
-  signature: "Signature of Duty Officer",
-  countersignedBy: "Countersigned by",
-};
+const draftKeyFor = (date) => `dutyChecklistDraft_${date}`;
 
 /* =====================================================
    COMPONENT
@@ -124,16 +115,17 @@ export default function ChecklistForm() {
   const [checks, setChecks] = useState(createChecks);
   const [touched, setTouched] = useState(false);
 
-  const [shiftStart, setShiftStart] = useState("");
-  const [shiftEnd, setShiftEnd] = useState("");
-
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
-  // still used for the inline "tick everything / fill everything" validation banner
   const [error, setError] = useState("");
 
   // undefined = checking, null = not submitted today, object = already submitted
   const [todayReport, setTodayReport] = useState(undefined);
+
+  const hasHydratedDraft = useRef(false);
+  const autosaveTimer = useRef(null);
 
   useEffect(() => {
     api
@@ -142,14 +134,47 @@ export default function ChecklistForm() {
       .catch(() => setTodayReport(null));
   }, []);
 
+  // Load a saved draft (if any) for today's date once we know no report is already submitted
   useEffect(() => {
-    if (shiftStart && shiftEnd) {
-      updateForm("shiftTiming", `${toHHMM(shiftStart)}–${toHHMM(shiftEnd)}`);
-    } else {
-      updateForm("shiftTiming", "");
+    if (todayReport !== null || hasHydratedDraft.current) return;
+    hasHydratedDraft.current = true;
+
+    try {
+      const raw = localStorage.getItem(draftKeyFor(getToday()));
+      if (!raw) return;
+
+      const draft = JSON.parse(raw);
+      if (draft?.form) setForm((prev) => ({ ...prev, ...draft.form }));
+      if (Array.isArray(draft?.checks) && draft.checks.length === checks.length) {
+        setChecks(draft.checks);
+      }
+      setDraftRestored(true);
+    } catch {
+      // corrupted draft, ignore silently
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shiftStart, shiftEnd]);
+  }, [todayReport]);
+
+  // Debounced autosave to localStorage on every change, so an accidental
+  // tab/window close doesn't lose progress.
+  useEffect(() => {
+    if (todayReport) return; // don't autosave once already submitted
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+
+    autosaveTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          draftKeyFor(form.date || getToday()),
+          JSON.stringify({ form, checks, savedAt: new Date().toISOString() }),
+        );
+      } catch {
+        // localStorage full/unavailable — fail silently, not critical
+      }
+    }, 800);
+
+    return () => clearTimeout(autosaveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, checks, todayReport]);
 
   const completed = useMemo(
     () => checks.filter((c) => c.checked).length,
@@ -183,6 +208,37 @@ export default function ChecklistForm() {
     setError("");
   };
 
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(draftKeyFor(form.date || getToday()));
+    } catch {
+      // ignore
+    }
+  };
+
+  const saveAsDraft = () => {
+    setSavingDraft(true);
+    try {
+      localStorage.setItem(
+        draftKeyFor(form.date || getToday()),
+        JSON.stringify({ form, checks, savedAt: new Date().toISOString() }),
+      );
+      toast.success("Draft saved — you can resume this later.");
+    } catch {
+      toast.error("Could not save draft on this device.");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const discardDraft = () => {
+    clearDraft();
+    setForm(createForm(user?.name));
+    setChecks(createChecks());
+    setDraftRestored(false);
+    toast.info("Draft discarded.");
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setTouched(true);
@@ -214,7 +270,6 @@ export default function ChecklistForm() {
       const { data } = await api.post("/reports", {
         date: form.date,
         dutyOfficerName: form.dutyOfficerName,
-        shiftTiming: form.shiftTiming,
         centreBatch: form.centreBatch,
         morningChecks,
         middayChecks,
@@ -227,6 +282,7 @@ export default function ChecklistForm() {
         countersignedBy: form.countersignedBy,
       });
 
+      clearDraft();
       toast.success("Thank you for your contribution!");
       setTodayReport(data);
       setTimeout(() => router.push("/teacher/dashboard"), 900);
@@ -238,8 +294,10 @@ export default function ChecklistForm() {
 
         toast.error(conflictMessage);
 
-        if (err?.response?.data?.report)
+        if (err?.response?.data?.report) {
           setTodayReport(err.response.data.report);
+          clearDraft();
+        }
       } else {
         toast.error(err?.response?.data?.message || "Could not save report.");
       }
@@ -343,6 +401,25 @@ export default function ChecklistForm() {
           </Box>
         </Paper>
 
+        {draftRestored && (
+          <Alert
+            severity="info"
+            action={
+              <Button
+                size="small"
+                color="inherit"
+                startIcon={<DeleteOutline />}
+                onClick={discardDraft}
+              >
+                Discard draft
+              </Button>
+            }
+          >
+            A saved draft from earlier was restored. Continue where you left
+            off, or discard it to start fresh.
+          </Alert>
+        )}
+
         {error && (
           <Alert severity="error" onClose={() => setError("")}>
             {error}
@@ -392,41 +469,13 @@ export default function ChecklistForm() {
                 helperText={fieldErrors.dutyOfficerName}
               />
             </Grid>
-            {/*  <Grid item xs={12} sm={3}>
-              <TextField
-                label="Shift Start"
-                type="time"
-                fullWidth
-                required
-                value={shiftStart}
-                onChange={(e) => setShiftStart(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                error={!!fieldErrors.shiftTiming && !shiftStart}
-              />
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <TextField
-                label="Shift End"
-                type="time"
-                fullWidth
-                required
-                value={shiftEnd}
-                onChange={(e) => setShiftEnd(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                error={!!fieldErrors.shiftTiming && !shiftEnd}
-                helperText={fieldErrors.shiftTiming}
-              />
-            </Grid> */}
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Centre / Batch covered"
                 placeholder="e.g. SDC Khurja"
                 fullWidth
-                //    required
                 value={form.centreBatch}
                 onChange={(e) => updateForm("centreBatch", e.target.value)}
-                error={!!fieldErrors.centreBatch}
-                helperText={fieldErrors.centreBatch}
               />
             </Grid>
           </Grid>
@@ -485,7 +534,7 @@ export default function ChecklistForm() {
         </Paper>
 
         {/* CHECKLIST SECTIONS */}
-        {sections.map((section, sectionIndex) => (
+        {sections.map((section) => (
           <Paper
             key={section.title}
             elevation={0}
@@ -495,43 +544,6 @@ export default function ChecklistForm() {
               overflow: "hidden",
             }}
           >
-            {/*  <Box
-              sx={{
-                px: { xs: 1.5, sm: 2.5 },
-                py: 1.5,
-                bgcolor: "#faf5ff",
-                borderBottom: "1px solid #f1f5f9",
-              }}
-            >
-              <Stack direction="row" alignItems="center" gap={1.5}>
-                <Box
-                  sx={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "50%",
-                    bgcolor: "#7e22ce",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 800,
-                    flexShrink: 0,
-                  }}
-                >
-                  {sectionIndex + 1}
-                </Box>
-                <Box>
-                  <Typography fontWeight={800} fontSize="0.95rem">
-                    {section.title}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.timing}
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box> */}
-
             <Box sx={{ px: { xs: 1.2, sm: 2 } }}>
               {section.items.map((label) => {
                 const index = cursor++;
@@ -758,6 +770,29 @@ export default function ChecklistForm() {
             justifyContent="flex-end"
             spacing={1.2}
           >
+            <Button
+              type="button"
+              variant="outlined"
+              size="large"
+              disabled={savingDraft || saving}
+              onClick={saveAsDraft}
+              startIcon={
+                savingDraft ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <Save />
+                )
+              }
+              sx={{
+                minWidth: { xs: "100%", sm: 180 },
+                borderColor: "#7e22ce",
+                color: "#7e22ce",
+                fontWeight: 700,
+                "&:hover": { borderColor: "#6b21a8", bgcolor: "#faf5ff" },
+              }}
+            >
+              {savingDraft ? "Saving..." : "Save as Draft"}
+            </Button>
             <Button
               type="submit"
               variant="contained"

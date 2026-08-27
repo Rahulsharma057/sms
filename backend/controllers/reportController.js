@@ -1,9 +1,18 @@
 const Report = require("../models/Report");
 
+// IST-correct "today" — plain new Date().toISOString() gives UTC date,
+// which is wrong for ~5.5 hours every night in IST. Shift to IST before slicing.
+const getTodayIST = () => {
+  const now = new Date();
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  return ist.toISOString().slice(0, 10);
+};
+
 // POST /api/reports  (teacher)
 const createReport = async (req, res) => {
   const {
-    date, dutyOfficerName, shiftTiming, centreBatch,
+    date, dutyOfficerName, centreBatch,
     morningChecks, middayChecks, afternoonChecks,
     positiveObservations, hygieneLapses, maintenanceFollowUp, urgentMatters,
     signature, countersignedBy,
@@ -24,7 +33,7 @@ const createReport = async (req, res) => {
 
   const report = await Report.create({
     teacher: req.user._id,
-    date, dutyOfficerName, shiftTiming, centreBatch,
+    date, dutyOfficerName, centreBatch,
     morningChecks, middayChecks, afternoonChecks,
     positiveObservations, hygieneLapses, maintenanceFollowUp, urgentMatters,
     signature, countersignedBy,
@@ -33,9 +42,9 @@ const createReport = async (req, res) => {
   res.status(201).json(report);
 };
 
-// GET /api/reports/today  (teacher — check if already submitted today)
+// GET /api/reports/today  (teacher — check if already submitted today, IST date)
 const getTodayReport = async (req, res) => {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = getTodayIST();
   const report = await Report.findOne({ teacher: req.user._id, date });
   res.json(report || null);
 };
@@ -46,7 +55,6 @@ const getMyReports = async (req, res) => {
   res.json(reports);
 };
 
-// GET /api/reports  (superadmin - all reports, optional ?teacher=&from=&to=)
 // GET /api/reports  (superadmin - all reports, optional ?teacher=&from=&to=&urgent=)
 const getAllReports = async (req, res) => {
   const filter = {};
@@ -72,6 +80,7 @@ const getAllReports = async (req, res) => {
   const reports = await Report.find(filter).populate("teacher", "name email centre").sort({ createdAt: -1 });
   res.json(reports);
 };
+
 // GET /api/reports/:id
 const getReportById = async (req, res) => {
   const report = await Report.findById(req.params.id).populate("teacher", "name email centre");
