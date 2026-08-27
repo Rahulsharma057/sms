@@ -98,9 +98,17 @@ app.use(cookieParser());
 /* =========================
    HEALTH CHECK
 ========================= */
+/* =========================
+   HEALTH CHECK
+========================= */
 
-app.get("/api/health", (req, res) => {
-  res.json({
+app.get("/health", (_req, res) => {
+  res.status(200).send("OK");
+});
+
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({
+    success: true,
     status: "ok",
     message: "SMS backend is running",
   });
@@ -134,6 +142,6 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
