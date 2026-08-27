@@ -16,12 +16,6 @@ export default function RootLayout({ children }) {
       <body style={{ margin: 0 }}>
         <Providers>{children}</Providers>
 
-        {/*
-          Global toast container — kisi bhi component me
-          dobara ToastContainer lagane ki zaroorat nahi.
-          Bas `import { toast } from "react-toastify"` karke
-          toast.success() / toast.error() call karo.
-        */}
         <ToastContainer position="top-right" autoClose={3000} />
       </body>
     </html>

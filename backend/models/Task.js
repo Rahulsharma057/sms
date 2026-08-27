@@ -5,6 +5,8 @@ const messageSchema = new mongoose.Schema(
     sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     senderName: { type: String, required: true },
     text: { type: String, required: true },
+    // Users who have viewed this message (sender is added automatically on send)
+    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

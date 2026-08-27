@@ -1,29 +1,73 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Box, Container, Typography, Paper, List, ListItemButton, ListItemText,
-  Chip, Grid, Stack, Avatar, IconButton, Skeleton, ListItemAvatar, Divider,
-  Menu, MenuItem,
+  Box,
+  Container,
+  Typography,
+  Paper,
+  List,
+  ListItemButton,
+  ListItemText,
+  Chip,
+  Grid,
+  Stack,
+  Avatar,
+  IconButton,
+  Skeleton,
+  ListItemAvatar,
+  Divider,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import {
-  ArrowBack, AssignmentOutlined, ChatBubbleOutline, ExpandMore,
-  CheckCircleOutline, AccessTimeOutlined, PendingActionsOutlined,
+  ArrowBack,
+  AssignmentOutlined,
+  ChatBubbleOutline,
+  ExpandMore,
+  CheckCircleOutline,
+  AccessTimeOutlined,
+  PendingActionsOutlined,
 } from "@mui/icons-material";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
 import TaskChat from "../../../components/TaskChat";
 import api from "../../../lib/api";
+import { useAuth } from "../../../context/AuthContext";
 
 const STATUS_CONFIG = {
-  pending: { label: "Pending", color: "warning", icon: <PendingActionsOutlined fontSize="small" /> },
-  "in-progress": { label: "In progress", color: "info", icon: <AccessTimeOutlined fontSize="small" /> },
-  completed: { label: "Completed", color: "success", icon: <CheckCircleOutline fontSize="small" /> },
+  pending: {
+    label: "Pending",
+    color: "warning",
+    icon: <PendingActionsOutlined fontSize="small" />,
+  },
+  "in-progress": {
+    label: "In progress",
+    color: "info",
+    icon: <AccessTimeOutlined fontSize="small" />,
+  },
+  completed: {
+    label: "Completed",
+    color: "success",
+    icon: <CheckCircleOutline fontSize="small" />,
+  },
 };
 const STATUS_ORDER = ["pending", "in-progress", "completed"];
 const getStatusConfig = (status) =>
-  STATUS_CONFIG[status] || { label: status || "Unknown", color: "default", icon: <AssignmentOutlined fontSize="small" /> };
+  STATUS_CONFIG[status] || {
+    label: status || "Unknown",
+    color: "default",
+    icon: <AssignmentOutlined fontSize="small" />,
+  };
 
-const AVATAR_COLORS = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
+const AVATAR_COLORS = [
+  "#6366F1",
+  "#0EA5E9",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#EC4899",
+];
 function colorForName(name = "") {
   const idx = [...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   return AVATAR_COLORS[idx % AVATAR_COLORS.length];
@@ -33,7 +77,20 @@ function initials(name = "") {
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
+// Count messages in a task that weren't sent by me and that I haven't seen yet
+function getUnreadCount(task, myId) {
+  if (!Array.isArray(task?.messages) || !myId) return 0;
+  return task.messages.filter((m) => {
+    const senderId = String(m.sender?._id || m.sender);
+    if (senderId === String(myId)) return false;
+    return !m.seenBy?.some((id) => String(id) === String(myId));
+  }).length;
+}
+
 function TeacherTasksInner() {
+  const { user } = useAuth();
+  const myId = user?.id || user?._id;
+
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -43,27 +100,73 @@ function TeacherTasksInner() {
 
   const load = () => {
     setLoading(true);
-    api.get("/tasks/mine").then((res) => setTasks(res.data)).finally(() => setLoading(false));
+    api
+      .get("/tasks/mine")
+      .then((res) => setTasks(res.data))
+      .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
+
+  // Lightly re-poll the task list so unread badges update even when a chat isn't open
+  useEffect(() => {
+    const interval = setInterval(() => {
+      api
+        .get("/tasks/mine")
+        .then((res) => setTasks(res.data))
+        .catch(() => {});
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Lock background scroll while the full-screen mobile chat is open (WhatsApp-style)
   useEffect(() => {
     document.body.style.overflow = mobileChatOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileChatOpen]);
 
-  const selectedTask = useMemo(() => tasks.find((t) => t._id === selected) || null, [tasks, selected]);
-  const pendingCount = useMemo(() => tasks.filter((t) => t.status !== "completed").length, [tasks]);
+  const selectedTask = useMemo(
+    () => tasks.find((t) => t._id === selected) || null,
+    [tasks, selected],
+  );
+  const pendingCount = useMemo(
+    () => tasks.filter((t) => t.status !== "completed").length,
+    [tasks],
+  );
 
-  const handleSelectTask = (id) => { setSelected(id); setMobileChatOpen(true); };
+  const handleSelectTask = (id) => {
+    setSelected(id);
+    setMobileChatOpen(true);
+    // Optimistically clear the unread badge for this task; TaskChat will
+    // persist the real "seen" state to the server as soon as it opens.
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === id
+          ? {
+              ...t,
+              messages: (t.messages || []).map((m) => ({
+                ...m,
+                seenBy: m.seenBy?.some((sid) => String(sid) === String(myId))
+                  ? m.seenBy
+                  : [...(m.seenBy || []), myId],
+              })),
+            }
+          : t,
+      ),
+    );
+  };
   const handleBack = () => setMobileChatOpen(false);
 
   // Status change: optimistic update so the UI reflects it immediately, revert on failure.
   const handleStatusChange = async (taskId, newStatus) => {
     setError("");
     const prevTasks = tasks;
-    setTasks((prev) => prev.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t)));
+    setTasks((prev) =>
+      prev.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t)),
+    );
     setUpdatingStatus(true);
     try {
       await api.patch(`/tasks/${taskId}/status`, { status: newStatus });
@@ -80,7 +183,9 @@ function TeacherTasksInner() {
       <Navbar />
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 } }}>
         <Box sx={{ mb: { xs: 2, sm: 3 } }}>
-          <Typography variant="h5" fontWeight={700}>My tasks</Typography>
+          <Typography variant="h5" fontWeight={700}>
+            My tasks
+          </Typography>
           <Typography variant="body2" color="text.secondary">
             {loading
               ? "Loading…"
@@ -92,54 +197,137 @@ function TeacherTasksInner() {
 
         <Grid container spacing={2}>
           {/* LIST PANE — always visible on mobile; chat opens as a full-screen overlay on top */}
-          <Grid item xs={12} md={4}>
-            <Paper variant="outlined" sx={{ borderRadius: 3, maxHeight: { xs: "none", md: 620 }, overflowY: "auto" }}>
+          <Grid
+            item
+            xs={12}
+            md={4}
+            sx={{
+              height: { xs: "auto", md: "calc(100vh - 200px)" },
+              minHeight: { md: 480 },
+            }}
+          >
+            <Paper
+              variant="outlined"
+              sx={{
+                borderRadius: 3,
+                height: { xs: "auto", md: "100%" },
+                maxHeight: { xs: 480, md: "none" },
+                overflowY: "auto",
+              }}
+            >
               {loading ? (
                 <Stack spacing={1.5} p={2}>
-                  {[...Array(4)].map((_, i) => <Skeleton key={i} variant="rounded" height={64} />)}
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} variant="rounded" height={64} />
+                  ))}
                 </Stack>
               ) : tasks.length === 0 ? (
                 <Box sx={{ p: 4, textAlign: "center" }}>
-                  <AssignmentOutlined sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
-                  <Typography fontWeight={600}>No tasks assigned yet</Typography>
+                  <AssignmentOutlined
+                    sx={{ fontSize: 36, color: "text.disabled", mb: 1 }}
+                  />
+                  <Typography fontWeight={600}>
+                    No tasks assigned yet
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
                     New tasks from admins will show up here.
                   </Typography>
                 </Box>
               ) : (
                 <List disablePadding>
-                  {tasks.map((t, i) => (
-                    <Box key={t._id}>
-                      <ListItemButton
-                        selected={selected === t._id}
-                        onClick={() => handleSelectTask(t._id)}
-                        sx={{ py: 1.5, px: 2, gap: 1.5, "&.Mui-selected": { bgcolor: "action.selected" } }}
-                      >
-                        <ListItemAvatar sx={{ minWidth: 44 }}>
-                          <Avatar sx={{ width: 36, height: 36, fontSize: 13, bgcolor: colorForName(t.assignedBy?.name) }}>
-                            {initials(t.assignedBy?.name)}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={<Typography fontWeight={600} noWrap>{t.title}</Typography>}
-                          secondary={
-                            <Typography variant="body2" color="text.secondary" noWrap>
-                              From {t.assignedBy?.name || "—"}
-                            </Typography>
-                          }
-                        />
-                        <StatusChip status={t.status} />
-                      </ListItemButton>
-                      {i < tasks.length - 1 && <Divider component="li" />}
-                    </Box>
-                  ))}
+                  {tasks.map((t, i) => {
+                    const unread = getUnreadCount(t, myId);
+                    return (
+                      <Box key={t._id}>
+                        <ListItemButton
+                          selected={selected === t._id}
+                          onClick={() => handleSelectTask(t._id)}
+                          sx={{
+                            py: 1.5,
+                            px: 2,
+                            gap: 1.5,
+                            "&.Mui-selected": { bgcolor: "action.selected" },
+                          }}
+                        >
+                          <ListItemAvatar sx={{ minWidth: 44 }}>
+                            <Box sx={{ position: "relative" }}>
+                              <Avatar
+                                sx={{
+                                  width: 36,
+                                  height: 36,
+                                  fontSize: 13,
+                                  bgcolor: colorForName(t.assignedBy?.name),
+                                }}
+                              >
+                                {initials(t.assignedBy?.name)}
+                              </Avatar>
+                              {unread > 0 && (
+                                <Box
+                                  sx={{
+                                    position: "absolute",
+                                    top: -4,
+                                    right: -4,
+                                    minWidth: 18,
+                                    height: 18,
+                                    px: 0.4,
+                                    borderRadius: "50%",
+                                    bgcolor: "error.main",
+                                    color: "white",
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    border: "2px solid #fff",
+                                  }}
+                                >
+                                  {unread > 9 ? "9+" : unread}
+                                </Box>
+                              )}
+                            </Box>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={
+                              <Typography
+                                fontWeight={unread > 0 ? 800 : 600}
+                                noWrap
+                              >
+                                {t.title}
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                noWrap
+                              >
+                                From {t.assignedBy?.name || "—"}
+                              </Typography>
+                            }
+                          />
+                          <StatusChip status={t.status} />
+                        </ListItemButton>
+                        {i < tasks.length - 1 && <Divider component="li" />}
+                      </Box>
+                    );
+                  })}
                 </List>
               )}
             </Paper>
           </Grid>
 
           {/* CHAT PANE — desktop only inline (mobile uses the overlay below) */}
-          <Grid item xs={false} md={8} sx={{ display: { xs: "none", md: "block" } }}>
+          <Grid
+            item
+            xs={false}
+            md={8}
+            sx={{
+              display: { xs: "none", md: "flex" },
+              flexDirection: "column",
+              height: { md: "calc(100vh - 200px)" },
+              minHeight: { md: 480 },
+            }}
+          >
             <ChatPane
               task={selectedTask}
               updatingStatus={updatingStatus}
@@ -153,10 +341,16 @@ function TeacherTasksInner() {
 
       {/* MOBILE FULL-SCREEN CHAT OVERLAY — WhatsApp style */}
       {mobileChatOpen && selectedTask && (
-        <Box sx={{
-          display: { xs: "flex", md: "none" }, flexDirection: "column",
-          position: "fixed", inset: 0, zIndex: 1300, bgcolor: "background.paper",
-        }}>
+        <Box
+          sx={{
+            display: { xs: "flex", md: "none" },
+            flexDirection: "column",
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            bgcolor: "background.paper",
+          }}
+        >
           <ChatPane
             task={selectedTask}
             updatingStatus={updatingStatus}
@@ -177,13 +371,24 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
       <Paper
         variant="outlined"
         sx={{
-          p: 5, textAlign: "center", borderRadius: 3, borderStyle: "dashed",
-          height: "100%", display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", minHeight: 300,
+          p: 5,
+          textAlign: "center",
+          borderRadius: 3,
+          borderStyle: "dashed",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 300,
         }}
       >
-        <ChatBubbleOutline sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
-        <Typography color="text.secondary">Select a task to view details and chat.</Typography>
+        <ChatBubbleOutline
+          sx={{ fontSize: 36, color: "text.disabled", mb: 1 }}
+        />
+        <Typography color="text.secondary">
+          Select a task to view details and chat.
+        </Typography>
       </Paper>
     );
   }
@@ -191,10 +396,17 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Stack
-        direction="row" spacing={1} alignItems="center"
+        direction="row"
+        spacing={1}
+        alignItems="center"
         sx={{
-          p: 1, flexShrink: 0, bgcolor: "white", border: "1px solid", borderColor: "divider",
-          borderRadius: showBack ? 0 : 3, mb: showBack ? 0 : 1.5,
+          p: 1,
+          flexShrink: 0,
+          bgcolor: "white",
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: showBack ? 0 : 3,
+          mb: showBack ? 0 : 1.5,
         }}
       >
         {showBack && (
@@ -202,21 +414,47 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
             <ArrowBack fontSize="small" />
           </IconButton>
         )}
-        <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: colorForName(task.assignedBy?.name) }}>
+        <Avatar
+          sx={{
+            width: 32,
+            height: 32,
+            fontSize: 12,
+            bgcolor: colorForName(task.assignedBy?.name),
+          }}
+        >
           {initials(task.assignedBy?.name)}
         </Avatar>
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography fontWeight={700} noWrap fontSize={14}>{task.title}</Typography>
+          <Typography fontWeight={700} noWrap fontSize={14}>
+            {task.title}
+          </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             From {task.assignedBy?.name || "—"}
           </Typography>
         </Box>
-        <StatusSelect status={task.status} disabled={updatingStatus} onChange={(s) => onStatusChange(task._id, s)} />
+        <StatusSelect
+          status={task.status}
+          disabled={updatingStatus}
+          onChange={(s) => onStatusChange(task._id, s)}
+        />
       </Stack>
 
       {task.description && (
-        <Box sx={{ px: 1.75, py: 0.85, bgcolor: "action.hover", borderBottom: showBack ? "1px solid" : "none", borderColor: "divider", flexShrink: 0 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+        <Box
+          sx={{
+            px: 1.75,
+            py: 0.85,
+            bgcolor: "action.hover",
+            borderBottom: showBack ? "1px solid" : "none",
+            borderColor: "divider",
+            flexShrink: 0,
+          }}
+        >
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ lineHeight: 1.5 }}
+          >
             <b>Task:</b> {task.description}
           </Typography>
         </Box>
@@ -231,7 +469,15 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
 
 function StatusChip({ status }) {
   const config = getStatusConfig(status);
-  return <Chip size="small" color={config.color} icon={config.icon} label={config.label} sx={{ fontWeight: 600, ml: 1, flexShrink: 0 }} />;
+  return (
+    <Chip
+      size="small"
+      color={config.color}
+      icon={config.icon}
+      label={config.label}
+      sx={{ fontWeight: 600, ml: 1, flexShrink: 0 }}
+    />
+  );
 }
 
 // Lets the teacher change their own task's status directly from the chat header.
@@ -252,11 +498,22 @@ function StatusSelect({ status, onChange, disabled }) {
         disabled={disabled}
         sx={{ fontWeight: 700, height: 26, flexShrink: 0, cursor: "pointer" }}
       />
-      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
+      <Menu
+        anchorEl={anchorEl}
+        open={!!anchorEl}
+        onClose={() => setAnchorEl(null)}
+      >
         {STATUS_ORDER.map((s) => {
           const c = STATUS_CONFIG[s];
           return (
-            <MenuItem key={s} selected={s === status} onClick={() => { onChange(s); setAnchorEl(null); }}>
+            <MenuItem
+              key={s}
+              selected={s === status}
+              onClick={() => {
+                onChange(s);
+                setAnchorEl(null);
+              }}
+            >
               <Stack direction="row" spacing={1} alignItems="center">
                 {c.icon}
                 <span>{c.label}</span>

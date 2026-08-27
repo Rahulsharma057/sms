@@ -1,6 +1,6 @@
 const express = require("express");
 const {
-  createTask, getMyTasks, getAllTasks, getTaskById, updateStatus, addMessage,
+  createTask, getMyTasks, getAllTasks, getTaskById, updateStatus, addMessage, markMessagesSeen,
 } = require("../controllers/taskController");
 const { protect, isSuperAdmin } = require("../middleware/auth");
 
@@ -13,5 +13,6 @@ router.get("/", isSuperAdmin, getAllTasks);
 router.get("/:id", getTaskById);
 router.patch("/:id/status", updateStatus);
 router.post("/:id/messages", addMessage);
+router.patch("/:id/messages/seen", markMessagesSeen);
 
 module.exports = router;

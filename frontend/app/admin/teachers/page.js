@@ -1,839 +1,337 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Box,
-  Container,
-  Typography,
-  Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Chip,
-  Switch,
-  Alert,
-  ToggleButton,
-  ToggleButtonGroup,
-  Avatar,
-  Stack,
-  InputAdornment,
-  Skeleton,
-  useMediaQuery,
-  IconButton,
-  Tooltip,
+  Box, Container, Typography, Paper, List, ListItemButton, ListItemText,
+  Chip, Grid, Stack, Avatar, IconButton, Skeleton, ListItemAvatar, Divider,
+  Menu, MenuItem,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import {
-  PersonAdd,
-  ViewList,
-  ViewModule,
-  Search,
-  MailOutline,
-  LocationOn,
-  GroupsOutlined,
-  Edit,
-  DeleteOutline,
+  ArrowBack, AssignmentOutlined, ChatBubbleOutline, ExpandMore,
+  CheckCircleOutline, AccessTimeOutlined, PendingActionsOutlined,
 } from "@mui/icons-material";
-import { toast } from "react-toastify";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
+import TaskChat from "../../../components/TaskChat";
 import api from "../../../lib/api";
+import { useAuth } from "../../../context/AuthContext";
 
-const AVATAR_COLORS = [
-  "#6366F1",
-  "#0EA5E9",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#EC4899",
-];
+const STATUS_CONFIG = {
+  pending: { label: "Pending", color: "warning", icon: <PendingActionsOutlined fontSize="small" /> },
+  "in-progress": { label: "In progress", color: "info", icon: <AccessTimeOutlined fontSize="small" /> },
+  completed: { label: "Completed", color: "success", icon: <CheckCircleOutline fontSize="small" /> },
+};
+const STATUS_ORDER = ["pending", "in-progress", "completed"];
+const getStatusConfig = (status) =>
+  STATUS_CONFIG[status] || { label: status || "Unknown", color: "default", icon: <AssignmentOutlined fontSize="small" /> };
 
+const AVATAR_COLORS = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
 function colorForName(name = "") {
   const idx = [...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   return AVATAR_COLORS[idx % AVATAR_COLORS.length];
 }
-
 function initials(name = "") {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
-const emptyForm = { name: "", email: "", password: "", centre: "" };
+// Count messages in a task that weren't sent by me and that I haven't seen yet
+function getUnreadCount(task, myId) {
+  if (!Array.isArray(task?.messages) || !myId) return 0;
+  return task.messages.filter((m) => {
+    const senderId = String(m.sender?._id || m.sender);
+    if (senderId === String(myId)) return false;
+    return !m.seenBy?.some((id) => String(id) === String(myId));
+  }).length;
+}
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function TeacherTasksInner() {
+  const { user } = useAuth();
+  const myId = user?.id || user?._id;
 
-function AdminTeachersInner() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-
-  const [teachers, setTeachers] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  /* ADD */
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [selected, setSelected] = useState(null);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [error, setError] = useState("");
-  const [emailFieldError, setEmailFieldError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  /* EDIT */
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTeacher, setEditTeacher] = useState(null);
-  const [editForm, setEditForm] = useState(emptyForm);
-  const [editError, setEditError] = useState("");
-  const [editEmailFieldError, setEditEmailFieldError] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
-
-  /* DELETE */
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState(null); // null = follow screen size, else user override
-
-  const effectiveView = view || (isMobile ? "card" : "table");
 
   const load = () => {
     setLoading(true);
-    api
-      .get("/users/teachers")
-      .then((res) => setTeachers(res.data))
-      .catch(() => toast.error("Could not load teachers."))
-      .finally(() => setLoading(false));
+    api.get("/tasks/mine").then((res) => setTasks(res.data)).finally(() => setLoading(false));
   };
+  useEffect(() => { load(); }, []);
+
+  // Lightly re-poll the task list so unread badges update even when a chat isn't open
   useEffect(() => {
-    load();
+    const interval = setInterval(() => {
+      api.get("/tasks/mine").then((res) => setTasks(res.data)).catch(() => {});
+    }, 8000);
+    return () => clearInterval(interval);
   }, []);
 
-  /* =====================================================
-     DUPLICATE EMAIL CHECK (client-side)
-     excludeId: pass the teacher's own id while editing so
-     they aren't flagged as a duplicate of themselves.
-  ===================================================== */
+  // Lock background scroll while the full-screen mobile chat is open (WhatsApp-style)
+  useEffect(() => {
+    document.body.style.overflow = mobileChatOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileChatOpen]);
 
-  const isEmailTaken = (email, excludeId = null) => {
-    const normalized = email.trim().toLowerCase();
+  const selectedTask = useMemo(() => tasks.find((t) => t._id === selected) || null, [tasks, selected]);
+  const pendingCount = useMemo(() => tasks.filter((t) => t.status !== "completed").length, [tasks]);
 
-    return teachers.some(
-      (t) =>
-        t.email?.toLowerCase() === normalized &&
-        String(t._id) !== String(excludeId),
+  const handleSelectTask = (id) => {
+    setSelected(id);
+    setMobileChatOpen(true);
+    // Optimistically clear the unread badge for this task; TaskChat will
+    // persist the real "seen" state to the server as soon as it opens.
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === id
+          ? {
+              ...t,
+              messages: (t.messages || []).map((m) => ({
+                ...m,
+                seenBy: m.seenBy?.some((sid) => String(sid) === String(myId))
+                  ? m.seenBy
+                  : [...(m.seenBy || []), myId],
+              })),
+            }
+          : t,
+      ),
     );
   };
+  const handleBack = () => setMobileChatOpen(false);
 
-  /* =====================================================
-     CREATE
-  ===================================================== */
-
-  const handleCreate = async () => {
+  // Status change: optimistic update so the UI reflects it immediately, revert on failure.
+  const handleStatusChange = async (taskId, newStatus) => {
     setError("");
-    setEmailFieldError("");
-
-    if (!form.name || !form.email || !form.password) {
-      const msg = "Name, email and password are required.";
-      setError(msg);
-      toast.error(msg);
-      return;
-    }
-
-    if (!EMAIL_REGEX.test(form.email.trim())) {
-      const msg = "Please enter a valid email address.";
-      setError(msg);
-      setEmailFieldError(msg);
-      toast.error(msg);
-      return;
-    }
-
-    if (isEmailTaken(form.email)) {
-      const msg = "A teacher with this email already exists.";
-      setError(msg);
-      setEmailFieldError(msg);
-      toast.error(msg);
-      return;
-    }
-
+    const prevTasks = tasks;
+    setTasks((prev) => prev.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t)));
+    setUpdatingStatus(true);
     try {
-      setSaving(true);
-
-      await api.post("/users", form);
-
-      setOpen(false);
-      setForm(emptyForm);
-
-      toast.success("Teacher account created.");
-
-      load();
+      await api.patch(`/tasks/${taskId}/status`, { status: newStatus });
     } catch (err) {
-      const msg =
-        err?.response?.data?.message || "Could not create teacher account.";
-
-      // Backend is still the source of truth — if it comes back
-      // with a duplicate-email error (race condition, stale list,
-      // etc.) surface it the same way as the client-side check.
-      if (/email/i.test(msg)) {
-        setEmailFieldError(msg);
-      }
-
-      setError(msg);
-      toast.error(msg);
+      setTasks(prevTasks); // revert on failure
+      setError(err?.response?.data?.message || "Could not update status.");
     } finally {
-      setSaving(false);
+      setUpdatingStatus(false);
     }
   };
-
-  /* =====================================================
-     EDIT
-  ===================================================== */
-
-  const openEdit = (teacher) => {
-    setEditTeacher(teacher);
-
-    setEditForm({
-      name: teacher.name || "",
-      email: teacher.email || "",
-      password: "",
-      centre: teacher.centre || "",
-    });
-
-    setEditError("");
-    setEditEmailFieldError("");
-    setEditOpen(true);
-  };
-
-  const closeEdit = () => {
-    if (editSaving) return;
-
-    setEditOpen(false);
-    setEditTeacher(null);
-    setEditForm(emptyForm);
-    setEditError("");
-    setEditEmailFieldError("");
-  };
-
-  const handleUpdate = async () => {
-    if (!editTeacher) return;
-
-    setEditError("");
-    setEditEmailFieldError("");
-
-    if (!editForm.name || !editForm.email) {
-      const msg = "Name and email are required.";
-      setEditError(msg);
-      toast.error(msg);
-      return;
-    }
-
-    if (!EMAIL_REGEX.test(editForm.email.trim())) {
-      const msg = "Please enter a valid email address.";
-      setEditError(msg);
-      setEditEmailFieldError(msg);
-      toast.error(msg);
-      return;
-    }
-
-    if (isEmailTaken(editForm.email, editTeacher._id)) {
-      const msg = "Another teacher is already using this email.";
-      setEditError(msg);
-      setEditEmailFieldError(msg);
-      toast.error(msg);
-      return;
-    }
-
-    try {
-      setEditSaving(true);
-
-      const payload = {
-        name: editForm.name,
-        email: editForm.email,
-        centre: editForm.centre,
-      };
-
-      // Only send a password if the admin actually typed a new one.
-      if (editForm.password) {
-        payload.password = editForm.password;
-      }
-
-      await api.put(`/users/${editTeacher._id}`, payload);
-
-      toast.success("Teacher updated successfully.");
-
-      closeEdit();
-      load();
-    } catch (err) {
-      const msg = err?.response?.data?.message || "Could not update teacher.";
-
-      if (/email/i.test(msg)) {
-        setEditEmailFieldError(msg);
-      }
-
-      setEditError(msg);
-      toast.error(msg);
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  /* =====================================================
-     DELETE
-  ===================================================== */
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      setDeleting(true);
-
-      await api.delete(`/users/${deleteTarget._id}`);
-
-      toast.success(`${deleteTarget.name} has been removed.`);
-
-      setTeachers((prev) => prev.filter((t) => t._id !== deleteTarget._id));
-
-      setDeleteTarget(null);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Could not delete teacher.");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  /* =====================================================
-     TOGGLE ACTIVE
-  ===================================================== */
-
-  const toggleActive = async (id) => {
-    setTeachers((prev) =>
-      prev.map((t) => (t._id === id ? { ...t, active: !t.active } : t)),
-    );
-    try {
-      await api.patch(`/users/${id}/toggle-active`);
-    } catch {
-      toast.error("Could not update status. Reverting.");
-      load(); // revert on failure
-    }
-  };
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return teachers;
-    return teachers.filter(
-      (t) =>
-        t.name?.toLowerCase().includes(q) ||
-        t.email?.toLowerCase().includes(q) ||
-        t.centre?.toLowerCase().includes(q),
-    );
-  }, [teachers, search]);
 
   return (
     <Box sx={{ bgcolor: "#F7F8FA", minHeight: "100vh" }}>
       <Navbar />
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 } }}>
-        {/* Header */}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "stretch", sm: "center" }}
-          spacing={2}
-          mb={3}
-        >
-          <Box>
-            <Typography variant="h5" fontWeight={700}>
-              Teachers
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {loading
-                ? "Loading…"
-                : `${teachers.length} teacher${teachers.length === 1 ? "" : "s"} on record`}
-            </Typography>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<PersonAdd />}
-            onClick={() => setOpen(true)}
-            sx={{
-              borderRadius: 2,
-              textTransform: "none",
-              fontWeight: 600,
-              boxShadow: "none",
-            }}
-          >
-            Add teacher
-          </Button>
-        </Stack>
+        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
+          <Typography variant="h5" fontWeight={700}>My tasks</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {loading
+              ? "Loading…"
+              : pendingCount > 0
+                ? `${pendingCount} task${pendingCount === 1 ? "" : "s"} need${pendingCount === 1 ? "s" : ""} your attention`
+                : "You're all caught up."}
+          </Typography>
+        </Box>
 
-        {/* Toolbar: search + view toggle */}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          alignItems={{ xs: "stretch", sm: "center" }}
-          justifyContent="space-between"
-          mb={2}
-        >
-          <TextField
-            size="small"
-            placeholder="Search by name, email or centre"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{ bgcolor: "white", borderRadius: 2, maxWidth: { sm: 340 } }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" sx={{ color: "text.secondary" }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={effectiveView}
-            onChange={(_, val) => val && setView(val)}
-            sx={{
-              alignSelf: { xs: "flex-end", sm: "auto" },
-              bgcolor: "white",
-              borderRadius: 2,
-            }}
-          >
-            <ToggleButton value="table" sx={{ textTransform: "none", px: 2 }}>
-              <ViewList fontSize="small" sx={{ mr: 0.75 }} /> Table
-            </ToggleButton>
-            <ToggleButton value="card" sx={{ textTransform: "none", px: 2 }}>
-              <ViewModule fontSize="small" sx={{ mr: 0.75 }} /> Cards
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Stack>
-
-        {/* Loading skeletons */}
-        {loading && (
-          <Stack spacing={1.5}>
-            {[...Array(4)].map((_, i) => (
-              <Skeleton
-                key={i}
-                variant="rounded"
-                height={effectiveView === "card" ? 96 : 52}
-              />
-            ))}
-          </Stack>
-        )}
-
-        {/* Empty state */}
-        {!loading && filtered.length === 0 && (
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 5,
-              textAlign: "center",
-              borderRadius: 3,
-              borderStyle: "dashed",
-            }}
-          >
-            <GroupsOutlined
-              sx={{ fontSize: 40, color: "text.disabled", mb: 1 }}
-            />
-            <Typography fontWeight={600}>
-              {teachers.length === 0
-                ? "No teachers added yet"
-                : "No matches found"}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {teachers.length === 0
-                ? "Add your first teacher to get started."
-                : "Try a different search term."}
-            </Typography>
-            {teachers.length === 0 && (
-              <Button
-                variant="outlined"
-                startIcon={<PersonAdd />}
-                onClick={() => setOpen(true)}
-              >
-                Add teacher
-              </Button>
-            )}
-          </Paper>
-        )}
-
-        {/* TABLE VIEW */}
-        {!loading && filtered.length > 0 && effectiveView === "table" && (
-          <Paper
-            sx={{ borderRadius: 3, overflow: "hidden" }}
-            variant="outlined"
-          >
-            <TableContainer sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow
-                    sx={{ "& th": { fontWeight: 700, bgcolor: "#FAFAFB" } }}
-                  >
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Centre</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Active</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.map((t) => (
-                    <TableRow key={t._id} hover>
-                      <TableCell>
-                        <Stack
-                          direction="row"
-                          spacing={1.5}
-                          alignItems="center"
-                        >
-                          <Avatar
-                            sx={{
-                              width: 32,
-                              height: 32,
-                              fontSize: 13,
-                              bgcolor: colorForName(t.name),
-                            }}
-                          >
-                            {initials(t.name)}
-                          </Avatar>
-                          <Typography variant="body2" fontWeight={600}>
-                            {t.name}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {t.email}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{t.centre || "—"}</TableCell>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          label={t.active ? "Active" : "Disabled"}
-                          color={t.active ? "success" : "default"}
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip
-                          title={
-                            t.active ? "Disable account" : "Enable account"
-                          }
-                        >
-                          <Switch
-                            checked={t.active}
-                            onChange={() => toggleActive(t._id)}
-                          />
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          justifyContent="flex-end"
-                        >
-                          <Tooltip title="Edit teacher">
-                            <IconButton
-                              size="small"
-                              onClick={() => openEdit(t)}
-                            >
-                              <Edit fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete teacher">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => setDeleteTarget(t)}
-                            >
-                              <DeleteOutline fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {/* CARD VIEW */}
-        {!loading && filtered.length > 0 && effectiveView === "card" && (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "1fr 1fr",
-                md: "1fr 1fr 1fr",
-              },
-              gap: 2,
-            }}
-          >
-            {filtered.map((t) => (
-              <Paper
-                key={t._id}
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1.25,
-                }}
-              >
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Avatar
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      bgcolor: colorForName(t.name),
-                    }}
-                  >
-                    {initials(t.name)}
-                  </Avatar>
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography fontWeight={700} noWrap>
-                      {t.name}
-                    </Typography>
-                    <Chip
-                      size="small"
-                      label={t.active ? "Active" : "Disabled"}
-                      color={t.active ? "success" : "default"}
-                      sx={{ fontWeight: 600, height: 20, fontSize: 11 }}
-                    />
-                  </Box>
-                  <Switch
-                    checked={t.active}
-                    onChange={() => toggleActive(t._id)}
-                  />
+        <Grid container spacing={2}>
+          {/* LIST PANE — always visible on mobile; chat opens as a full-screen overlay on top */}
+          <Grid item xs={12} md={4}>
+            <Paper variant="outlined" sx={{ borderRadius: 3, maxHeight: { xs: "none", md: 620 }, overflowY: "auto" }}>
+              {loading ? (
+                <Stack spacing={1.5} p={2}>
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} variant="rounded" height={64} />)}
                 </Stack>
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <MailOutline
-                    fontSize="small"
-                    sx={{ color: "text.disabled" }}
-                  />
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {t.email}
-                  </Typography>
-                </Stack>
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <LocationOn
-                    fontSize="small"
-                    sx={{ color: "text.disabled" }}
-                  />
+              ) : tasks.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: "center" }}>
+                  <AssignmentOutlined sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
+                  <Typography fontWeight={600}>No tasks assigned yet</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {t.centre || "No centre assigned"}
+                    New tasks from admins will show up here.
                   </Typography>
-                </Stack>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {tasks.map((t, i) => {
+                    const unread = getUnreadCount(t, myId);
+                    return (
+                      <Box key={t._id}>
+                        <ListItemButton
+                          selected={selected === t._id}
+                          onClick={() => handleSelectTask(t._id)}
+                          sx={{ py: 1.5, px: 2, gap: 1.5, "&.Mui-selected": { bgcolor: "action.selected" } }}
+                        >
+                          <ListItemAvatar sx={{ minWidth: 44 }}>
+                            <Box sx={{ position: "relative" }}>
+                              <Avatar sx={{ width: 36, height: 36, fontSize: 13, bgcolor: colorForName(t.assignedBy?.name) }}>
+                                {initials(t.assignedBy?.name)}
+                              </Avatar>
+                              {unread > 0 && (
+                                <Box
+                                  sx={{
+                                    position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, px: 0.4,
+                                    borderRadius: "50%", bgcolor: "error.main", color: "white",
+                                    fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
+                                    border: "2px solid #fff",
+                                  }}
+                                >
+                                  {unread > 9 ? "9+" : unread}
+                                </Box>
+                              )}
+                            </Box>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Typography fontWeight={unread > 0 ? 800 : 600} noWrap>{t.title}</Typography>}
+                            secondary={
+                              <Typography variant="body2" color="text.secondary" noWrap>
+                                From {t.assignedBy?.name || "—"}
+                              </Typography>
+                            }
+                          />
+                          <StatusChip status={t.status} />
+                        </ListItemButton>
+                        {i < tasks.length - 1 && <Divider component="li" />}
+                      </Box>
+                    );
+                  })}
+                </List>
+              )}
+            </Paper>
+          </Grid>
 
-                <Stack direction="row" spacing={1} justifyContent="flex-end">
-                  <Button
-                    size="small"
-                    startIcon={<Edit fontSize="small" />}
-                    onClick={() => openEdit(t)}
-                    sx={{ textTransform: "none" }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="small"
-                    color="error"
-                    startIcon={<DeleteOutline fontSize="small" />}
-                    onClick={() => setDeleteTarget(t)}
-                    sx={{ textTransform: "none" }}
-                  >
-                    Delete
-                  </Button>
-                </Stack>
-              </Paper>
-            ))}
-          </Box>
-        )}
+          {/* CHAT PANE — desktop only inline (mobile uses the overlay below) */}
+          <Grid item xs={false} md={8} sx={{ display: { xs: "none", md: "block" } }}>
+            <ChatPane
+              task={selectedTask}
+              updatingStatus={updatingStatus}
+              onStatusChange={handleStatusChange}
+              onBack={handleBack}
+              showBack={false}
+            />
+          </Grid>
+        </Grid>
       </Container>
 
-      {/* =====================================================
-          ADD TEACHER DIALOG
-      ===================================================== */}
-      <Dialog
-        open={open}
-        onClose={() => !saving && setOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Add teacher</DialogTitle>
-        <DialogContent
-          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
-        >
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField
-            label="Full name"
-            fullWidth
-            autoFocus
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+      {/* MOBILE FULL-SCREEN CHAT OVERLAY — WhatsApp style */}
+      {mobileChatOpen && selectedTask && (
+        <Box sx={{
+          display: { xs: "flex", md: "none" }, flexDirection: "column",
+          position: "fixed", inset: 0, zIndex: 1300, bgcolor: "background.paper",
+        }}>
+          <ChatPane
+            task={selectedTask}
+            updatingStatus={updatingStatus}
+            onStatusChange={handleStatusChange}
+            onBack={handleBack}
+            showBack
           />
-          <TextField
-            label="Email"
-            type="email"
-            fullWidth
-            value={form.email}
-            onChange={(e) => {
-              setForm({ ...form, email: e.target.value });
-              setEmailFieldError("");
-            }}
-            error={!!emailFieldError}
-            helperText={emailFieldError}
-          />
-          <TextField
-            label="Temporary password"
-            fullWidth
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-          <TextField
-            label="Centre (optional)"
-            fullWidth
-            value={form.centre}
-            onChange={(e) => setForm({ ...form, centre: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setOpen(false)}
-            disabled={saving}
-            sx={{ textTransform: "none" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleCreate}
-            disabled={saving}
-            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
-          >
-            {saving ? "Creating…" : "Create"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* =====================================================
-          EDIT TEACHER DIALOG
-      ===================================================== */}
-      <Dialog open={editOpen} onClose={closeEdit} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Edit teacher</DialogTitle>
-        <DialogContent
-          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
-        >
-          {editError && <Alert severity="error">{editError}</Alert>}
-          <TextField
-            label="Full name"
-            fullWidth
-            autoFocus
-            value={editForm.name}
-            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-          />
-          <TextField
-            label="Email"
-            type="email"
-            fullWidth
-            value={editForm.email}
-            onChange={(e) => {
-              setEditForm({ ...editForm, email: e.target.value });
-              setEditEmailFieldError("");
-            }}
-            error={!!editEmailFieldError}
-            helperText={editEmailFieldError}
-          />
-          <TextField
-            label="New password"
-            placeholder="Leave blank to keep current password"
-            fullWidth
-            value={editForm.password}
-            onChange={(e) =>
-              setEditForm({ ...editForm, password: e.target.value })
-            }
-          />
-          <TextField
-            label="Centre (optional)"
-            fullWidth
-            value={editForm.centre}
-            onChange={(e) =>
-              setEditForm({ ...editForm, centre: e.target.value })
-            }
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={closeEdit}
-            disabled={editSaving}
-            sx={{ textTransform: "none" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleUpdate}
-            disabled={editSaving}
-            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
-          >
-            {editSaving ? "Saving…" : "Save changes"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* =====================================================
-          DELETE CONFIRMATION DIALOG
-      ===================================================== */}
-      <Dialog
-        open={!!deleteTarget}
-        onClose={() => !deleting && setDeleteTarget(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Delete teacher</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            Are you sure you want to permanently delete{" "}
-            <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setDeleteTarget(null)}
-            disabled={deleting}
-            sx={{ textTransform: "none" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleDelete}
-            disabled={deleting}
-            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none" }}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      )}
     </Box>
   );
 }
 
-export default function AdminTeachersPage() {
+// Shared chat panel — used both inline (desktop) and as a full-screen overlay (mobile).
+function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
+  if (!task) {
+    return (
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 5, textAlign: "center", borderRadius: 3, borderStyle: "dashed",
+          height: "100%", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", minHeight: 300,
+        }}
+      >
+        <ChatBubbleOutline sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
+        <Typography color="text.secondary">Select a task to view details and chat.</Typography>
+      </Paper>
+    );
+  }
+
   return (
-    <ProtectedRoute role="superadmin">
-      <AdminTeachersInner />
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Stack
+        direction="row" spacing={1} alignItems="center"
+        sx={{
+          p: 1, flexShrink: 0, bgcolor: "white", border: "1px solid", borderColor: "divider",
+          borderRadius: showBack ? 0 : 3, mb: showBack ? 0 : 1.5,
+        }}
+      >
+        {showBack && (
+          <IconButton size="small" onClick={onBack}>
+            <ArrowBack fontSize="small" />
+          </IconButton>
+        )}
+        <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: colorForName(task.assignedBy?.name) }}>
+          {initials(task.assignedBy?.name)}
+        </Avatar>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography fontWeight={700} noWrap fontSize={14}>{task.title}</Typography>
+          <Typography variant="caption" color="text.secondary" noWrap>
+            From {task.assignedBy?.name || "—"}
+          </Typography>
+        </Box>
+        <StatusSelect status={task.status} disabled={updatingStatus} onChange={(s) => onStatusChange(task._id, s)} />
+      </Stack>
+
+      {task.description && (
+        <Box sx={{ px: 1.75, py: 0.85, bgcolor: "action.hover", borderBottom: showBack ? "1px solid" : "none", borderColor: "divider", flexShrink: 0 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+            <b>Task:</b> {task.description}
+          </Typography>
+        </Box>
+      )}
+
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <TaskChat taskId={task._id} />
+      </Box>
+    </Box>
+  );
+}
+
+function StatusChip({ status }) {
+  const config = getStatusConfig(status);
+  return <Chip size="small" color={config.color} icon={config.icon} label={config.label} sx={{ fontWeight: 600, ml: 1, flexShrink: 0 }} />;
+}
+
+// Lets the teacher change their own task's status directly from the chat header.
+function StatusSelect({ status, onChange, disabled }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const config = getStatusConfig(status);
+
+  return (
+    <>
+      <Chip
+        size="small"
+        color={config.color}
+        icon={config.icon}
+        label={config.label}
+        deleteIcon={<ExpandMore fontSize="small" />}
+        onDelete={(e) => setAnchorEl(e.currentTarget)}
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        disabled={disabled}
+        sx={{ fontWeight: 700, height: 26, flexShrink: 0, cursor: "pointer" }}
+      />
+      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
+        {STATUS_ORDER.map((s) => {
+          const c = STATUS_CONFIG[s];
+          return (
+            <MenuItem key={s} selected={s === status} onClick={() => { onChange(s); setAnchorEl(null); }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {c.icon}
+                <span>{c.label}</span>
+              </Stack>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
+  );
+}
+
+export default function TeacherTasksPage() {
+  return (
+    <ProtectedRoute role="teacher">
+      <TeacherTasksInner />
     </ProtectedRoute>
   );
 }

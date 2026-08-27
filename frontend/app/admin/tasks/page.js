@@ -5,6 +5,7 @@ import {
   Alert, Avatar, Box, Button, Chip, CircularProgress, Container, Dialog,
   DialogActions, DialogContent, DialogTitle, Grid, IconButton, List,
   ListItemButton, Menu, MenuItem, Paper, Select, Stack, TextField, Typography,
+  useMediaQuery, useTheme,
 } from "@mui/material";
 import {
   Add, ArrowBack, AssignmentOutlined, CheckCircleOutline,
@@ -15,6 +16,7 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
 import TaskChat from "../../../components/TaskChat";
 import api from "../../../lib/api";
+import { useAuth } from "../../../context/AuthContext";
 
 const STATUS_CONFIG = {
   pending: { label: "Pending", color: "warning", icon: <PendingActionsOutlined fontSize="small" /> },
@@ -45,7 +47,23 @@ function formatDueDate(date) {
   return parsed.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// Count messages in a task that weren't sent by me and that I haven't seen yet
+function getUnreadCount(task, myId) {
+  if (!Array.isArray(task?.messages) || !myId) return 0;
+  return task.messages.filter((m) => {
+    const senderId = String(m.sender?._id || m.sender);
+    if (senderId === String(myId)) return false;
+    return !m.seenBy?.some((id) => String(id) === String(myId));
+  }).length;
+}
+
 function AdminTasksInner() {
+  const { user } = useAuth();
+  const myId = user?.id || user?._id;
+  const theme = useTheme();
+  // Matches the Grid breakpoint where the overlay actually renders (xs/sm only).
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [tasks, setTasks] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -82,11 +100,29 @@ function AdminTasksInner() {
 
   useEffect(() => { loadTasks(); loadTeachers(); }, []);
 
-  // Lock background scroll while the full-screen mobile chat is open (WhatsApp-style)
+  // Lightly re-poll the task list so unread badges update even when a chat isn't open
   useEffect(() => {
-    document.body.style.overflow = mobileChatOpen ? "hidden" : "";
+    const interval = setInterval(loadTasks, 8000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Lock background scroll ONLY while the full-screen mobile overlay is actually
+  // showing (xs/sm). On desktop the chat renders inline with no back button, so
+  // locking here unconditionally left the page permanently unscrollable and
+  // clipped the sidebar/navbar out of view once a task was selected.
+  useEffect(() => {
+    const shouldLock = mobileChatOpen && isMobile;
+    document.body.style.overflow = shouldLock ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [mobileChatOpen]);
+  }, [mobileChatOpen, isMobile]);
+
+  // If the viewport crosses from mobile to desktop (e.g. rotating a tablet,
+  // resizing a browser window) while the overlay is open, drop the mobile
+  // overlay state so we don't leave stale "open" state lying around.
+  useEffect(() => {
+    if (!isMobile && mobileChatOpen) setMobileChatOpen(false);
+  }, [isMobile, mobileChatOpen]);
 
   // Filtered by selected teacher
   const filteredTasks = useMemo(() => {
@@ -103,7 +139,29 @@ function AdminTasksInner() {
     completed: filteredTasks.filter((t) => t.status === "completed").length,
   }), [filteredTasks]);
 
-  const handleSelectTask = (id) => { setSelected(id); setMobileChatOpen(true); };
+  const handleSelectTask = (id) => {
+    setSelected(id);
+    // Only trigger the full-screen mobile overlay on small viewports —
+    // on desktop the chat is already shown inline in the right-hand pane.
+    if (isMobile) setMobileChatOpen(true);
+    // Optimistically clear the unread badge for this task; TaskChat will
+    // persist the real "seen" state to the server as soon as it opens.
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === id
+          ? {
+              ...t,
+              messages: (t.messages || []).map((m) => ({
+                ...m,
+                seenBy: m.seenBy?.some((sid) => String(sid) === String(myId))
+                  ? m.seenBy
+                  : [...(m.seenBy || []), myId],
+              })),
+            }
+          : t,
+      ),
+    );
+  };
   const handleBack = () => setMobileChatOpen(false);
 
   const handleOpenCreate = () => { setError(""); setForm(EMPTY_FORM); setOpen(true); };
@@ -148,7 +206,7 @@ function AdminTasksInner() {
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f7f8fc" }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#f7f8fc" }}>
       <Navbar />
       <Container maxWidth="xl" sx={{ py: { xs: 1.5, sm: 2 }, px: { xs: 1, sm: 2, md: 3 } }}>
         {/* HEADER */}
@@ -182,7 +240,8 @@ function AdminTasksInner() {
         {/* MAIN AREA */}
         <Paper elevation={0} sx={{
           border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden",
-          height: { xs: "calc(100vh - 240px)", md: "calc(100vh - 265px)" }, minHeight: { xs: 480, md: 580 },
+          height: { xs: "calc(100dvh - 250px)", sm: "calc(100dvh - 260px)", md: "calc(100dvh - 265px)" },
+          minHeight: { xs: 420, sm: 480, md: 580 },
         }}>
           <Grid container sx={{ height: "100%" }}>
             {/* TASK LIST — always visible on mobile (chat opens as an overlay on top of it) */}
@@ -191,7 +250,7 @@ function AdminTasksInner() {
               borderRight: { md: "1px solid" }, borderColor: { md: "divider" },
             }}>
               {/* LIST HEADER + TEACHER FILTER */}
-              <Box sx={{ px: 1.75, py: 1.25, borderBottom: "1px solid", borderColor: "divider", flexShrink: 0 }}>
+              <Box sx={{ px: { xs: 1.25, sm: 1.75 }, py: 1.25, borderBottom: "1px solid", borderColor: "divider", flexShrink: 0 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                   <Typography fontWeight={700} fontSize="0.95rem">Assigned Tasks</Typography>
                   <Chip size="small" label={filteredTasks.length} sx={{ height: 22, fontWeight: 700 }} />
@@ -205,15 +264,16 @@ function AdminTasksInner() {
                   displayEmpty
                   startAdornment={<FilterListOutlined fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />}
                   sx={{ borderRadius: 1.5, fontSize: "0.85rem", bgcolor: "action.hover" }}
+                  MenuProps={{ PaperProps: { sx: { maxHeight: 320 } } }}
                 >
                   <MenuItem value={ALL_TEACHERS}>All teachers</MenuItem>
                   {teachers.map((t) => (
                     <MenuItem key={t._id} value={t._id}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Avatar sx={{ width: 20, height: 20, fontSize: 10, bgcolor: colorForName(t.name) }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                        <Avatar sx={{ width: 20, height: 20, fontSize: 10, bgcolor: colorForName(t.name), flexShrink: 0 }}>
                           {initials(t.name)}
                         </Avatar>
-                        <span>{t.name}</span>
+                        <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</Box>
                       </Stack>
                     </MenuItem>
                   ))}
@@ -228,7 +288,13 @@ function AdminTasksInner() {
                 ) : (
                   <List disablePadding>
                     {filteredTasks.map((task) => (
-                      <TaskListItem key={task._id} task={task} selected={selected === task._id} onClick={() => handleSelectTask(task._id)} />
+                      <TaskListItem
+                        key={task._id}
+                        task={task}
+                        selected={selected === task._id}
+                        unread={getUnreadCount(task, myId)}
+                        onClick={() => handleSelectTask(task._id)}
+                      />
                     ))}
                   </List>
                 )}
@@ -253,7 +319,7 @@ function AdminTasksInner() {
       {mobileChatOpen && selectedTask && (
         <Box sx={{
           display: { xs: "flex", md: "none" }, flexDirection: "column",
-          position: "fixed", inset: 0, zIndex: 1300, bgcolor: "background.paper",
+          position: "fixed", inset: 0, height: "100dvh", width: "100vw", zIndex: 1300, bgcolor: "background.paper",
         }}>
           <ChatPane
             task={selectedTask}
@@ -266,7 +332,11 @@ function AdminTasksInner() {
       )}
 
       {/* CREATE TASK DIALOG */}
-      <Dialog open={open} onClose={handleCloseCreate} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 2.5, mx: 1.5 } }}>
+      <Dialog
+        open={open} onClose={handleCloseCreate} fullWidth maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: { xs: 0, sm: 2.5 }, mx: { xs: 0, sm: 1.5 }, my: { xs: 0, sm: "auto" }, height: { xs: "100%", sm: "auto" }, maxHeight: { xs: "100%", sm: "calc(100% - 64px)" } } }}
+        sx={{ "& .MuiDialog-container": { alignItems: { xs: "stretch", sm: "center" } } }}
+      >
         <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>Assign New Task</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
           {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 1.5 }}>{error}</Alert>}
@@ -282,15 +352,16 @@ function AdminTasksInner() {
             <TextField
               select label="Assign to teacher" fullWidth size="small"
               value={form.assignedTo} onChange={(e) => setForm((p) => ({ ...p, assignedTo: e.target.value }))}
+              SelectProps={{ MenuProps: { PaperProps: { sx: { maxHeight: 320 } } } }}
             >
               <MenuItem value="" disabled>Select teacher</MenuItem>
               {teachers.map((t) => (
                 <MenuItem key={t._id} value={t._id}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Avatar sx={{ width: 22, height: 22, fontSize: 10, bgcolor: colorForName(t.name) }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Avatar sx={{ width: 22, height: 22, fontSize: 10, bgcolor: colorForName(t.name), flexShrink: 0 }}>
                       {initials(t.name)}
                     </Avatar>
-                    <span>{t.name}</span>
+                    <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</Box>
                   </Stack>
                 </MenuItem>
               ))}
@@ -301,7 +372,7 @@ function AdminTasksInner() {
             />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 2.5, pb: 2, gap: 1 }}>
+        <DialogActions sx={{ px: 2.5, pb: { xs: 2.5, sm: 2 }, gap: 1, flexWrap: "wrap" }}>
           <Button onClick={handleCloseCreate} disabled={creating} sx={{ textTransform: "none", fontWeight: 600 }}>Cancel</Button>
           <Button
             variant="contained" onClick={handleCreate} disabled={creating}
@@ -339,17 +410,17 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
       <Box sx={{ px: 1.5, py: 1, borderBottom: "1px solid", borderColor: "divider", flexShrink: 0 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
           {showBack && (
-            <IconButton size="small" onClick={onBack}>
+            <IconButton size="small" onClick={onBack} sx={{ flexShrink: 0 }}>
               <ArrowBack fontSize="small" />
             </IconButton>
           )}
-          <Avatar sx={{ width: 34, height: 34, fontSize: 13, bgcolor: colorForName(task.assignedTo?.name) }}>
+          <Avatar sx={{ width: { xs: 30, sm: 34 }, height: { xs: 30, sm: 34 }, fontSize: 13, bgcolor: colorForName(task.assignedTo?.name), flexShrink: 0 }}>
             {initials(task.assignedTo?.name)}
           </Avatar>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography fontWeight={800} fontSize="0.9rem" noWrap>{task.title}</Typography>
             <Stack direction="row" spacing={0.5} alignItems="center">
-              <PersonOutline sx={{ fontSize: 13, color: "text.disabled" }} />
+              <PersonOutline sx={{ fontSize: 13, color: "text.disabled", flexShrink: 0 }} />
               <Typography variant="caption" color="text.secondary" noWrap>
                 {task.assignedTo?.name || "Unassigned"}
               </Typography>
@@ -361,7 +432,7 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
 
       {task.description && (
         <Box sx={{ px: 1.75, py: 0.85, bgcolor: "action.hover", borderBottom: "1px solid", borderColor: "divider", flexShrink: 0 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: { xs: 2, sm: 3 }, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             <b>Task:</b> {task.description}
           </Typography>
         </Box>
@@ -392,7 +463,16 @@ function StatCard({ label, value, icon }) {
 
 function StatusChip({ status }) {
   const config = getStatusConfig(status);
-  return <Chip size="small" color={config.color} icon={config.icon} label={config.label} sx={{ fontWeight: 700, height: 26, flexShrink: 0 }} />;
+  return (
+    <Chip
+      size="small" color={config.color} icon={config.icon} label={config.label}
+      sx={{
+        fontWeight: 700, height: 26, flexShrink: 0,
+        fontSize: { xs: "0.68rem", sm: "0.75rem" },
+        "& .MuiChip-label": { px: { xs: 0.6, sm: 1 } },
+      }}
+    />
+  );
 }
 
 function StatusSelect({ status, onChange, disabled }) {
@@ -410,7 +490,11 @@ function StatusSelect({ status, onChange, disabled }) {
         onDelete={(e) => setAnchorEl(e.currentTarget)}
         onClick={(e) => setAnchorEl(e.currentTarget)}
         disabled={disabled}
-        sx={{ fontWeight: 700, height: 26, flexShrink: 0, cursor: "pointer" }}
+        sx={{
+          fontWeight: 700, height: 26, flexShrink: 0, cursor: "pointer",
+          fontSize: { xs: "0.68rem", sm: "0.75rem" },
+          "& .MuiChip-label": { px: { xs: 0.6, sm: 1 } },
+        }}
       />
       <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
         {STATUS_ORDER.map((s) => {
@@ -429,22 +513,37 @@ function StatusSelect({ status, onChange, disabled }) {
   );
 }
 
-function TaskListItem({ task, selected, onClick }) {
+function TaskListItem({ task, selected, unread, onClick }) {
   return (
     <ListItemButton
       selected={selected} onClick={onClick}
       sx={{
-        px: 1.75, py: 1.15, alignItems: "flex-start", gap: 1.25, borderBottom: "1px solid", borderColor: "divider",
+        px: { xs: 1.25, sm: 1.75 }, py: 1.15, alignItems: "flex-start", gap: { xs: 1, sm: 1.25 },
+        borderBottom: "1px solid", borderColor: "divider",
         "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.hover" },
       }}
     >
-      <Avatar sx={{ width: 34, height: 34, fontSize: 12, bgcolor: colorForName(task.assignedTo?.name), mt: 0.25, flexShrink: 0 }}>
-        {initials(task.assignedTo?.name)}
-      </Avatar>
+      <Box sx={{ position: "relative", flexShrink: 0, mt: 0.25 }}>
+        <Avatar sx={{ width: 34, height: 34, fontSize: 12, bgcolor: colorForName(task.assignedTo?.name) }}>
+          {initials(task.assignedTo?.name)}
+        </Avatar>
+        {unread > 0 && (
+          <Box
+            sx={{
+              position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, px: 0.4,
+              borderRadius: "50%", bgcolor: "error.main", color: "white",
+              fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
+              border: "2px solid #fff",
+            }}
+          >
+            {unread > 9 ? "9+" : unread}
+          </Box>
+        )}
+      </Box>
       <Box sx={{ width: "100%", minWidth: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-          <Typography fontWeight={700} sx={{
-            fontSize: "0.88rem", lineHeight: 1.3, minWidth: 0, overflow: "hidden",
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.75} flexWrap="wrap">
+          <Typography fontWeight={unread > 0 ? 800 : 700} sx={{
+            fontSize: "0.88rem", lineHeight: 1.3, minWidth: 0, flex: "1 1 140px", overflow: "hidden",
             display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
           }}>
             {task.title || "Untitled task"}
