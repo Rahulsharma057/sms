@@ -32,6 +32,7 @@ import {
   LinearProgress,
   ToggleButtonGroup,
   ToggleButton,
+  Pagination,
 } from "@mui/material";
 
 import {
@@ -48,6 +49,7 @@ import {
   ViewModule,
   Person,
   CheckCircle,
+  DeleteOutline,
 } from "@mui/icons-material";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -650,7 +652,10 @@ function AllReportsInner() {
   const [viewMode, setViewMode] =
     useState("table");
 
-  const [dateFilter, setDateFilter] =
+  const [fromDate, setFromDate] =
+    useState(getToday());
+
+  const [toDate, setToDate] =
     useState(getToday());
 
   const [teacherFilter, setTeacherFilter] =
@@ -658,6 +663,17 @@ function AllReportsInner() {
 
   const [urgentFilter, setUrgentFilter] =
     useState("");
+
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const [deleteTarget, setDeleteTarget] =
+    useState(null);
+
+  const [deleting, setDeleting] =
+    useState(false);
 
   /* -------------------------------------------------
      LOAD REPORTS
@@ -668,11 +684,17 @@ function AllReportsInner() {
   ) => {
     setLoading(true);
 
-    const params = {};
+    const params = {
+      page: filters.page || 1,
+      limit,
+    };
 
-    if (filters.date !== "") {
-      params.from = filters.date;
-      params.to = filters.date;
+    if (filters.from) {
+      params.from = filters.from;
+    }
+
+    if (filters.to) {
+      params.to = filters.to;
     }
 
     if (filters.teacher) {
@@ -687,9 +709,19 @@ function AllReportsInner() {
 
     api
       .get("/reports", { params })
-      .then((res) =>
-        setReports(res.data)
-      )
+      .then((res) => {
+        // Backend now returns { reports, pagination } instead of a plain array.
+        setReports(res.data?.reports || []);
+        setTotalPages(
+          res.data?.pagination?.totalPages || 1
+        );
+        setTotal(
+          res.data?.pagination?.total || 0
+        );
+        setPage(
+          res.data?.pagination?.page || 1
+        );
+      })
       .finally(() =>
         setLoading(false)
       );
@@ -703,9 +735,11 @@ function AllReportsInner() {
       );
 
     loadReports({
-      date: dateFilter,
+      from: fromDate,
+      to: toDate,
       teacher: teacherFilter,
       urgent: urgentFilter,
+      page: 1,
     });
   }, []);
 
@@ -717,10 +751,15 @@ function AllReportsInner() {
     next = {}
   ) => {
     const merged = {
-      date:
-        next.date !== undefined
-          ? next.date
-          : dateFilter,
+      from:
+        next.from !== undefined
+          ? next.from
+          : fromDate,
+
+      to:
+        next.to !== undefined
+          ? next.to
+          : toDate,
 
       teacher:
         next.teacher !== undefined
@@ -731,10 +770,17 @@ function AllReportsInner() {
         next.urgent !== undefined
           ? next.urgent
           : urgentFilter,
+
+      // any filter change resets pagination back to page 1
+      page: 1,
     };
 
-    if (next.date !== undefined) {
-      setDateFilter(next.date);
+    if (next.from !== undefined) {
+      setFromDate(next.from);
+    }
+
+    if (next.to !== undefined) {
+      setToDate(next.to);
     }
 
     if (
@@ -757,21 +803,38 @@ function AllReportsInner() {
   };
 
   const resetFilters = () => {
-    setDateFilter(getToday());
+    setFromDate(getToday());
+    setToDate(getToday());
     setTeacherFilter("");
     setUrgentFilter("");
 
     loadReports({
-      date: getToday(),
+      from: getToday(),
+      to: getToday(),
       teacher: "",
       urgent: "",
+      page: 1,
     });
   };
 
   const showAllDates = () =>
     applyFilters({
-      date: "",
+      from: "",
+      to: "",
     });
+
+  const handlePageChange = (
+    _e,
+    value
+  ) => {
+    loadReports({
+      from: fromDate,
+      to: toDate,
+      teacher: teacherFilter,
+      urgent: urgentFilter,
+      page: value,
+    });
+  };
 
   const isUrgentReport = (r) => {
     const t =
@@ -801,6 +864,50 @@ function AllReportsInner() {
     return () =>
       clearTimeout(t);
   }, [copyToast]);
+
+  /* -------------------------------------------------
+     DELETE
+  ------------------------------------------------- */
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+
+    try {
+      await api.delete(
+        `/reports/${deleteTarget._id}`
+      );
+
+      setDeleteTarget(null);
+      setCopyToast(
+        "Report deleted successfully."
+      );
+
+      // If the deleted item was the last one on this page, step back a page.
+      const isLastItemOnPage =
+        reports.length === 1 &&
+        page > 1;
+
+      loadReports({
+        from: fromDate,
+        to: toDate,
+        teacher: teacherFilter,
+        urgent: urgentFilter,
+        page: isLastItemOnPage
+          ? page - 1
+          : page,
+      });
+    } catch (err) {
+      setCopyToast(
+        err?.response?.data
+          ?.message ||
+          "Could not delete report."
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <Box
@@ -955,7 +1062,7 @@ function AllReportsInner() {
                       sm: "1.5rem",
                     }}
                   >
-                    {reports.length}
+                    {total}
                   </Typography>
                 </Box>
               </CardContent>
@@ -1117,18 +1224,20 @@ function AllReportsInner() {
                     }}
                     noWrap
                   >
-                    Date
+                    Range
                   </Typography>
 
                   <Typography
                     fontWeight={800}
                     fontSize={{
-                      xs: "0.85rem",
-                      sm: "1.25rem",
+                      xs: "0.72rem",
+                      sm: "1rem",
                     }}
                     noWrap
                   >
-                    {dateFilter || "All"}
+                    {fromDate || toDate
+                      ? `${fromDate || "…"} → ${toDate || "…"}`
+                      : "All dates"}
                   </Typography>
                 </Box>
               </CardContent>
@@ -1225,20 +1334,44 @@ function AllReportsInner() {
                 </MenuItem>
               </TextField>
 
-              {/* ONLY TODAY OR PAST DATES */}
+              {/* DATE RANGE — replaces the single "Date" field */}
 
               <TextField
-                label="Date"
+                label="From"
                 type="date"
                 size="small"
-                value={dateFilter}
+                value={fromDate}
                 onChange={(e) =>
                   applyFilters({
-                    date:
-                      e.target.value,
+                    from: e.target.value,
                   })
                 }
                 inputProps={{
+                  max: toDate || getToday(),
+                }}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                sx={{
+                  flex: {
+                    xs: "1 1 48%",
+                    sm: "0 1 150px",
+                  },
+                }}
+              />
+
+              <TextField
+                label="To"
+                type="date"
+                size="small"
+                value={toDate}
+                onChange={(e) =>
+                  applyFilters({
+                    to: e.target.value,
+                  })
+                }
+                inputProps={{
+                  min: fromDate || undefined,
                   max: getToday(),
                 }}
                 InputLabelProps={{
@@ -1246,8 +1379,8 @@ function AllReportsInner() {
                 }}
                 sx={{
                   flex: {
-                    xs: "1 1 100%",
-                    sm: "0 1 170px",
+                    xs: "1 1 48%",
+                    sm: "0 1 150px",
                   },
                 }}
               />
@@ -1268,7 +1401,8 @@ function AllReportsInner() {
                   size="small"
                   onClick={showAllDates}
                   disabled={
-                    dateFilter === ""
+                    fromDate === "" &&
+                    toDate === ""
                   }
                   sx={{
                     color: "#7e22ce",
@@ -1403,7 +1537,7 @@ function AllReportsInner() {
                     </TableCell>
 
                     <TableCell>
-                      Centre/Batch
+                      Centre Name
                     </TableCell>
 
                     <TableCell>
@@ -1506,6 +1640,21 @@ function AllReportsInner() {
                               }}
                             >
                               <PictureAsPdf fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              onClick={() =>
+                                setDeleteTarget(r)
+                              }
+                              sx={{
+                                color:
+                                  "#dc2626",
+                              }}
+                            >
+                              <DeleteOutline fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </TableCell>
@@ -1717,12 +1866,68 @@ function AllReportsInner() {
                             <PictureAsPdf fontSize="small" />
                           </IconButton>
                         </Tooltip>
+
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              setDeleteTarget(r)
+                            }
+                            sx={{
+                              color:
+                                "#dc2626",
+                            }}
+                          >
+                            <DeleteOutline fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Stack>
                     </Card>
                   </Grid>
                 );
               })}
             </Grid>
+          )}
+
+          {/* PAGINATION */}
+
+          {!loading && reports.length > 0 && (
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              flexWrap="wrap"
+              gap={1}
+              sx={{
+                mt: 2,
+                pt: 1.5,
+                borderTop: "1px solid #e2e8f0",
+              }}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+              >
+                Showing page {page} of{" "}
+                {totalPages} ({total}{" "}
+                total)
+              </Typography>
+
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={handlePageChange}
+                size="small"
+                shape="rounded"
+                sx={{
+                  "& .Mui-selected": {
+                    bgcolor:
+                      "#7e22ce !important",
+                    color: "white",
+                  },
+                }}
+              />
+            </Stack>
           )}
         </Paper>
       </Container>
@@ -2275,6 +2480,116 @@ function AllReportsInner() {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* =================================================
+          DELETE CONFIRM DIALOG
+      ================================================= */}
+
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() =>
+          !deleting &&
+          setDeleteTarget(null)
+        }
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 2.5 },
+        }}
+      >
+        <DialogContent
+          sx={{ pt: 3 }}
+        >
+          <Stack
+            spacing={1}
+            alignItems="center"
+            textAlign="center"
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                bgcolor: "#fee2e2",
+                display: "flex",
+                alignItems: "center",
+                justifyContent:
+                  "center",
+              }}
+            >
+              <DeleteOutline
+                sx={{
+                  color: "#dc2626",
+                }}
+              />
+            </Box>
+
+            <Typography fontWeight={800}>
+              Delete this report?
+            </Typography>
+
+            <Typography
+              variant="body2"
+              color="text.secondary"
+            >
+              {deleteTarget?.date} —{" "}
+              {deleteTarget?.teacher
+                ?.name ||
+                "Unknown teacher"}
+              . This action cannot be
+              undone.
+            </Typography>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            px: 3,
+            pb: 2.5,
+            justifyContent: "center",
+            gap: 1,
+          }}
+        >
+          <Button
+            onClick={() =>
+              setDeleteTarget(null)
+            }
+            disabled={deleting}
+            sx={{
+              textTransform: "none",
+            }}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            variant="contained"
+            color="error"
+            onClick={
+              handleDeleteConfirmed
+            }
+            disabled={deleting}
+            startIcon={
+              deleting ? (
+                <CircularProgress
+                  size={16}
+                  color="inherit"
+                />
+              ) : (
+                <DeleteOutline />
+              )
+            }
+            sx={{
+              textTransform: "none",
+              fontWeight: 700,
+            }}
+          >
+            {deleting
+              ? "Deleting..."
+              : "Delete"}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

@@ -91,7 +91,7 @@ function TeacherDashboardInner() {
                 <TableRow>
                   <TableCell>Date</TableCell>
      {/*              <TableCell>Shift</TableCell> */}
-                  <TableCell>Centre/Batch</TableCell>
+                  <TableCell>Centre Name</TableCell>
                   <TableCell>Urgent Matters</TableCell>
                 </TableRow>
               </TableHead>
