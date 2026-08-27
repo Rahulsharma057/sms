@@ -1,7 +1,7 @@
 const Report = require("../models/Report");
+const VALID_SECTIONS = ["morningChecks", "middayChecks", "afternoonChecks"];
+const VALID_STATUSES = ["open", "resolved"];
 
-// IST-correct "today" — plain new Date().toISOString() gives UTC date,
-// which is wrong for ~5.5 hours every night in IST. Shift to IST before slicing.
 const getTodayIST = () => {
   const now = new Date();
   const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -22,7 +22,6 @@ const createReport = async (req, res) => {
     return res.status(400).json({ message: "Date and Duty Officer name are required" });
   }
 
-  // one report per teacher per day
   const existing = await Report.findOne({ teacher: req.user._id, date });
   if (existing) {
     return res.status(409).json({
@@ -42,20 +41,20 @@ const createReport = async (req, res) => {
   res.status(201).json(report);
 };
 
-// GET /api/reports/today  (teacher — check if already submitted today, IST date)
+// GET /api/reports/today  (teacher — IST date)
 const getTodayReport = async (req, res) => {
   const date = getTodayIST();
   const report = await Report.findOne({ teacher: req.user._id, date });
   res.json(report || null);
 };
 
-// GET /api/reports/mine  (teacher - own reports)
+// GET /api/reports/mine  (teacher)
 const getMyReports = async (req, res) => {
   const reports = await Report.find({ teacher: req.user._id }).sort({ createdAt: -1 });
   res.json(reports);
 };
 
-// GET /api/reports  (superadmin - all reports, optional ?teacher=&from=&to=&urgent=)
+// GET /api/reports  (superadmin)
 const getAllReports = async (req, res) => {
   const filter = {};
   if (req.query.teacher) filter.teacher = req.query.teacher;
@@ -65,8 +64,6 @@ const getAllReports = async (req, res) => {
     if (req.query.to) filter.date.$lte = req.query.to;
   }
 
-  // urgent = "true"  -> only reports where urgentMatters has real content (not empty / "None")
-  // urgent = "false" -> only reports where it's empty or "None"
   const NOT_URGENT_REGEX = /^\s*(none)?\s*$/i;
   if (req.query.urgent === "true") {
     filter.urgentMatters = { $exists: true, $not: NOT_URGENT_REGEX };
@@ -92,4 +89,142 @@ const getReportById = async (req, res) => {
   res.json(report);
 };
 
-module.exports = { createReport, getTodayReport, getMyReports, getAllReports, getReportById };
+/* =====================================================
+   ISSUE TRACKER  (superadmin)
+   An "issue" = a checklist item that has a teacher remark,
+   or was left unchecked — i.e. something that needs attention.
+===================================================== */
+
+const isIssueItem = (item) => (item.remark && item.remark.trim()) || item.checked === false;
+
+// GET /api/reports/issues/summary  (superadmin)
+// Groups issues by their checklist label — "which problem happens most".
+// GET /api/reports/issues/summary  (superadmin)
+const getIssuesSummary = async (req, res) => {
+  const reports = await Report.find({}).populate("teacher", "name").select("morningChecks middayChecks afternoonChecks teacher");
+
+  const groups = {}; // key -> { label, totalCount, openCount, resolvedCount, followedCount, teacherIds: Set }
+
+  reports.forEach((report) => {
+    VALID_SECTIONS.forEach((section) => {
+      (report[section] || []).forEach((item) => {
+        if (!isIssueItem(item)) return;
+
+        const key = (item.label || "").trim().toLowerCase();
+        if (!groups[key]) {
+          groups[key] = {
+            label: item.label,
+            totalCount: 0,
+            openCount: 0,
+            resolvedCount: 0,
+            followedCount: 0,
+            teacherIds: new Set(),
+          };
+        }
+        groups[key].totalCount += 1;
+        if (item.status === "resolved") groups[key].resolvedCount += 1;
+        else groups[key].openCount += 1;
+        if (item.followed) groups[key].followedCount += 1;
+        if (report.teacher?._id) groups[key].teacherIds.add(String(report.teacher._id));
+      });
+    });
+  });
+
+  const summary = Object.values(groups)
+    .map((g) => ({
+      label: g.label,
+      totalCount: g.totalCount,
+      openCount: g.openCount,
+      resolvedCount: g.resolvedCount,
+      followedCount: g.followedCount,
+      teacherCount: g.teacherIds.size, // 👈 "kitne logo ka same issue hai"
+    }))
+    .sort((a, b) => b.totalCount - a.totalCount);
+
+  res.json(summary);
+};
+
+// GET /api/reports/issues  (superadmin)
+// Flattened list of individual issue occurrences, with filters.
+// query: ?label=&status=open|resolved&followed=true&section=
+const getIssuesList = async (req, res) => {
+  const { label, status, followed, section } = req.query;
+
+  const reports = await Report.find({}).populate("teacher", "name email").sort({ date: -1 });
+
+  const sectionsToScan = section && VALID_SECTIONS.includes(section) ? [section] : VALID_SECTIONS;
+  const results = [];
+
+  reports.forEach((report) => {
+    sectionsToScan.forEach((sec) => {
+      (report[sec] || []).forEach((item, index) => {
+        if (!isIssueItem(item)) return;
+        if (label && (item.label || "").trim().toLowerCase() !== label.trim().toLowerCase()) return;
+        if (status && item.status !== status) return;
+        if (followed === "true" && !item.followed) return;
+
+        results.push({
+          reportId: report._id,
+          date: report.date,
+          teacher: report.teacher
+            ? { _id: report.teacher._id, name: report.teacher.name, email: report.teacher.email }
+            : null,
+          section: sec,
+          index,
+          label: item.label,
+          remark: item.remark,
+          checked: item.checked,
+          status: item.status,
+          adminRemark: item.adminRemark,
+          followed: !!item.followed,
+          resolvedAt: item.resolvedAt,
+        });
+      });
+    });
+  });
+
+  res.json(results);
+};
+
+// PATCH /api/reports/:id/check-status  (superadmin)
+// body: { section, index, status?, adminRemark?, followed? }
+const updateCheckStatus = async (req, res) => {
+  const { section, index, status, adminRemark, followed } = req.body;
+
+  if (!VALID_SECTIONS.includes(section)) {
+    return res.status(400).json({ message: "Invalid section." });
+  }
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ message: "Invalid status." });
+  }
+  if (typeof index !== "number" || index < 0) {
+    return res.status(400).json({ message: "Invalid item index." });
+  }
+
+  const report = await Report.findById(req.params.id);
+  if (!report) return res.status(404).json({ message: "Report not found" });
+
+  const item = report[section]?.[index];
+  if (!item) return res.status(404).json({ message: "Checklist item not found" });
+
+  if (status !== undefined) {
+    item.status = status;
+    if (status === "resolved") {
+      item.resolvedBy = req.user._id;
+      item.resolvedAt = new Date();
+    } else {
+      item.resolvedBy = undefined;
+      item.resolvedAt = undefined;
+    }
+  }
+  if (adminRemark !== undefined) item.adminRemark = adminRemark;
+  if (followed !== undefined) item.followed = !!followed;
+
+  await report.save();
+  res.json(report);
+};
+
+module.exports = {
+  createReport, getTodayReport, getMyReports, getAllReports, getReportById,
+  updateCheckStatus, getIssuesSummary, getIssuesList,
+};
