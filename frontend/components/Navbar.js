@@ -93,7 +93,7 @@ export default function Navbar() {
   const NavList = (
     <Box sx={{ width: 260 }}>
       {/* DRAWER HEADER — branding */}
-      <Box sx={{ px: 2.2, py: 2.2, bgcolor: "primary.main", color: "white" }}>
+      <Box sx={{ px: 2.2, py: 2.2, bgcolor: "rgb(22, 22, 126)", color: "white" }}>
         <Typography
           fontSize="0.68rem"
           letterSpacing={0.5}
@@ -192,7 +192,7 @@ export default function Navbar() {
 
   return (
     <>
-      <AppBar position="sticky" color="primary" elevation={2}>
+      <AppBar position="sticky" color="primary" sx={{ bgcolor: "rgb(14, 14, 131)" }} elevation={2}>
         <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
           {isMobile && (
             <IconButton

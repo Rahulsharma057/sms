@@ -1,7 +1,14 @@
 "use client";
 import { useState } from "react";
 import {
-  Box, Paper, TextField, Button, Typography, Alert, InputAdornment, IconButton,
+  Box,
+  Paper,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import { Visibility, VisibilityOff, School } from "@mui/icons-material";
 import { useAuth } from "../../context/AuthContext";
@@ -21,7 +28,9 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err?.response?.data?.message || "Login failed. Please try again.");
+      setError(
+        err?.response?.data?.message || "Login failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -34,14 +43,38 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(135deg, #1e3a5f 0%, #2e7d32 100%)",
+
+        backgroundImage: `
+      linear-gradient(rgba(10, 15, 80, 0.55), rgba(10, 15, 80, 0.55)),
+      url("/login-bg.png")
+    `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+
         p: 2,
       }}
     >
-      <Paper elevation={8} sx={{ p: { xs: 3, sm: 5 }, width: "100%", maxWidth: 420 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3 }}>
-          <School sx={{ fontSize: 44, color: "primary.main" }} />
-          <Typography variant="h5" fontWeight={700} mt={1} textAlign="center">
+      <Paper
+        elevation={8}
+        sx={{ p: { xs: 3, sm: 5 }, width: "100%", maxWidth: 420 }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            mb: 3,
+          }}
+        >
+          <School sx={{ fontSize: 44, color: "error.main" }} />
+          <Typography
+            variant="h5"
+            sx={{ color: "rgb(56, 40, 145)" }}
+            fontWeight={700}
+            mt={1}
+            textAlign="center"
+          >
             Duty Officer Checklist
           </Typography>
           <Typography variant="body2" color="text.secondary" textAlign="center">
@@ -49,7 +82,11 @@ export default function LoginPage() {
           </Typography>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         <Box component="form" onSubmit={handleSubmit}>
           <TextField
@@ -72,7 +109,10 @@ export default function LoginPage() {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword((s) => !s)} edge="end">
+                  <IconButton
+                    onClick={() => setShowPassword((s) => !s)}
+                    edge="end"
+                  >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -85,13 +125,27 @@ export default function LoginPage() {
             variant="contained"
             size="large"
             disabled={loading}
-            sx={{ mt: 3, py: 1.3 }}
+            sx={{
+              mt: 3,
+              py: 1.3,
+              backgroundColor: "#160b76",
+              "&:hover": {
+                color: "#fff",
+                backgroundColor: "#d32f2f",
+              },
+            }}
           >
             {loading ? "Signing in..." : "Login"}
           </Button>
         </Box>
 
-        <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={3}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          display="block"
+          textAlign="center"
+          mt={3}
+        >
           Teachers: use the email/password given by your admin.
           <br />
           Forgot your password? Contact the Superadmin.
