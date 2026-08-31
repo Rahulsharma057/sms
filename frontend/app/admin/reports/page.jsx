@@ -980,7 +980,7 @@ function AllReportsInner() {
                   sm: 40,
                 },
                 borderRadius: 1.5,
-                bgcolor: "primary.main",
+                bgcolor: "rgb(61, 37, 165)",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
@@ -2125,26 +2125,41 @@ function AllReportsInner() {
             {/* =================================================
                 PAGINATION
             ================================================= */}
-
-          {!loading && reports.length > 0 && (
+{!loading && reports.length > 0 && (
   <Stack
-    direction={{ xs: "column", sm: "row" }}
+    direction="row"
     justifyContent="space-between"
-    alignItems={{ xs: "stretch", sm: "center" }}
-    gap={0.5}
+    alignItems="center"
     sx={{
-      px: 1.5,
-      py: 0.55,
-      bgcolor: "rgba(23, 43, 143, 0.98)",
-      borderTop: "1px solid rgba(255,255,255,0.15)",
+      px: { xs: 1, sm: 1.5 },
+      py: { xs: 0.7, sm: 0.55 },
+      width: "100%",
+      boxSizing: "border-box",
+
+      // Mobile white, desktop blue
+      bgcolor: {
+        xs: "#FFFFFF",
+        sm: "rgba(23, 43, 143, 0.98)",
+      },
+
+      borderTop: {
+        xs: "1px solid #E5E7EB",
+        sm: "1px solid rgba(255,255,255,0.15)",
+      },
     }}
   >
+    {/* LEFT */}
     <Typography
       variant="caption"
       sx={{
-        fontSize: "0.68rem",
-        color: "#FFFFFF",
+        fontSize: { xs: "0.62rem", sm: "0.68rem" },
+        color: {
+          xs: "#333333",
+          sm: "#FFFFFF",
+        },
         fontWeight: 600,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
       }}
     >
       Showing page{" "}
@@ -2158,42 +2173,66 @@ function AllReportsInner() {
       ({total} total)
     </Typography>
 
+    {/* RIGHT */}
     <Pagination
       count={totalPages}
       page={page}
       onChange={handlePageChange}
       size="small"
+      siblingCount={1}
+      boundaryCount={0}
       shape="rounded"
       sx={{
-        alignSelf: {
-          xs: "center",
-          sm: "auto",
+        flexShrink: 0,
+
+        "& .MuiPagination-ul": {
+          flexWrap: "nowrap",
+          gap: 0,
         },
 
         "& .MuiPaginationItem-root": {
-          minWidth: 26,
-          width: 26,
-          height: 26,
-          fontSize: "0.68rem",
-          fontWeight: 700,
-          color: "#FFFFFF",
-          borderRadius: 1.2,
+          minWidth: { xs: 24, sm: 26 },
+          width: { xs: 24, sm: 26 },
+          height: { xs: 24, sm: 26 },
+          padding: 0,
           margin: "0 1px",
+          fontSize: { xs: "0.62rem", sm: "0.68rem" },
+          fontWeight: 700,
+          borderRadius: 1.2,
+
+          color: {
+            xs: "rgba(23, 43, 143, 0.98)",
+            sm: "#FFFFFF",
+          },
         },
 
         "& .MuiPaginationItem-root:hover": {
-          bgcolor: "rgba(255,255,255,0.15)",
-          color: "#FFFFFF",
+          bgcolor: {
+            xs: "rgba(23, 43, 143, 0.08)",
+            sm: "rgba(255,255,255,0.15)",
+          },
         },
 
-        "& .Mui-selected": {
-          bgcolor: "#FFFFFF !important",
-          color: "rgba(23, 43, 143, 0.98) !important",
+        // Active
+        "& .MuiPaginationItem-root.Mui-selected": {
+          bgcolor: {
+            xs: "rgba(23, 43, 143, 0.98)",
+            sm: "#FFFFFF",
+          },
+
+          color: {
+            xs: "#FFFFFF",
+            sm: "rgba(23, 43, 143, 0.98)",
+          },
+
           fontWeight: 800,
         },
 
         "& .MuiPaginationItem-previousNext": {
-          color: "#FFFFFF",
+          color: {
+            xs: "rgba(23, 43, 143, 0.98)",
+            sm: "#FFFFFF",
+          },
         },
       }}
     />

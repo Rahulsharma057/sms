@@ -523,7 +523,7 @@ function AdminDashboardInner() {
                     justifyContent: "center",
                     position: "relative",
                     overflow: "hidden",
-
+bgcolor:"rgba(37, 39, 150, 0.97)",
                     "&::after": {
                       content: '""',
                       position: "absolute",
@@ -536,7 +536,7 @@ function AdminDashboardInner() {
                     },
                   }}
                 >
-                  <HistoryEdu sx={{ fontSize: 21 }} />
+                  <HistoryEdu sx={{ fontSize: 21 ,bgcolor:"rgba(32, 34, 185, 0.97)"}} />
                 </Box>
 
                 <Box>
@@ -556,7 +556,7 @@ function AdminDashboardInner() {
                     <Box
                       component="span"
                       sx={{
-                        color: COLORS.primaryLight,
+                        color: "rgb(24, 36, 171)",
                       }}
                     >
                       Dashboard
@@ -583,7 +583,7 @@ function AdminDashboardInner() {
                 startIcon={<HistoryEdu sx={{ fontSize: 18 }} />}
                 sx={{
                   minHeight: 38,
-                 bgcolor: "rgba(200, 9, 9, 0.98)",
+                 bgcolor: "rgb(223, 42, 36)",
                   borderRadius: 1.75,
                   px: 4.75,
                   fontSize: 12.5,
@@ -1278,37 +1278,63 @@ function AdminDashboardInner() {
             }}
           />
 
-        <Box
+ <Box
   sx={{
-    px: { xs: 1.5, md: 2 },
-    py: 1.15,
+    px: { xs: 1, sm: 1.5, md: 2 },
+    py: { xs: 0.7, sm: 0.75, md: 1.15 },
+
     display: "flex",
-    flexDirection: {
-      xs: "column",
-      sm: "row",
-    },
+    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: {
-      xs: "stretch",
-      sm: "center",
+    alignItems: "center",
+
+    gap: { xs: 0.5, sm: 1 },
+
+    width: "100%",
+    boxSizing: "border-box",
+
+    // Mobile = White | Desktop = Blue
+    bgcolor: {
+      xs: "#FFFFFF",
+      sm: "rgba(24, 43, 138, 0.98)",
     },
-    gap: 1,
-   bgcolor: "rgba(24, 43, 138, 0.98)",
-    borderTop: `1px solid ${COLORS.primaryDark}`,
+
+    borderTop: {
+      xs: "1px solid #E5E7EB",
+      sm: `1px solid ${COLORS.primaryDark}`,
+    },
   }}
 >
+  {/* =========================
+      REPORT COUNT
+  ========================= */}
   <Typography
     sx={{
-      color: "rgba(255,255,255,0.8)",
-      fontSize: 11.5,
+      color: {
+        xs: "#333333",
+        sm: "rgba(255,255,255,0.8)",
+      },
+
+      fontSize: {
+        xs: 10.5,
+        sm: 11,
+        md: 11.5,
+      },
+
       fontWeight: 600,
+
+      whiteSpace: "nowrap",
+      flexShrink: 0,
     }}
   >
     Showing{" "}
     <Box
       component="span"
       sx={{
-        color: "#FFFFFF",
+        color: {
+          xs: "#111111",
+          sm: "#FFFFFF",
+        },
         fontWeight: 800,
       }}
     >
@@ -1318,7 +1344,10 @@ function AdminDashboardInner() {
     <Box
       component="span"
       sx={{
-        color: "#FFFFFF",
+        color: {
+          xs: "#111111",
+          sm: "#FFFFFF",
+        },
         fontWeight: 800,
       }}
     >
@@ -1327,6 +1356,9 @@ function AdminDashboardInner() {
     reports
   </Typography>
 
+  {/* =========================
+      PAGINATION
+  ========================= */}
   <Pagination
     size="small"
     count={totalPages}
@@ -1336,34 +1368,115 @@ function AdminDashboardInner() {
         page: value,
       })
     }
+    siblingCount={1}
+    boundaryCount={0}
     sx={{
+      flexShrink: 0,
+
+      "& .MuiPagination-ul": {
+        flexWrap: "nowrap",
+        gap: 0,
+      },
+
       "& .MuiPaginationItem-root": {
-        minWidth: 30,
-        height: 30,
-        fontSize: 12,
-        color: "#FFFFFF",
-        borderRadius: 1.5,
+        minWidth: {
+          xs: 24,
+          sm: 28,
+          md: 30,
+        },
+
+        width: {
+          xs: 24,
+          sm: 28,
+          md: 30,
+        },
+
+        height: {
+          xs: 24,
+          sm: 28,
+          md: 30,
+        },
+
+        padding: 0,
+
+        margin: "0 1px",
+
+        fontSize: {
+          xs: 10,
+          sm: 11,
+          md: 12,
+        },
+
         fontWeight: 700,
-        border: "1px solid rgba(255,255,255,0.25)",
+
+        borderRadius: {
+          xs: 1,
+          sm: 1.5,
+        },
+
+        border: {
+          xs: "none",
+          sm: "1px solid rgba(255,255,255,0.25)",
+        },
+
+        color: {
+          xs: "rgba(24, 43, 138, 0.98)",
+          sm: "#FFFFFF",
+        },
       },
 
+      // Hover
       "& .MuiPaginationItem-root:hover": {
-        bgcolor: "rgba(255,255,255,0.15)",
-        borderColor: "#FFFFFF",
+        bgcolor: {
+          xs: "rgba(24, 43, 138, 0.07)",
+          sm: "rgba(255,255,255,0.15)",
+        },
+
+        borderColor: {
+          xs: "transparent",
+          sm: "#FFFFFF",
+        },
       },
 
+      // Active page
       "& .MuiPaginationItem-root.Mui-selected": {
-        bgcolor: "#FFFFFF !important",
-        color: `${COLORS.primary} !important`,
-        borderColor: "#FFFFFF !important",
+        bgcolor: {
+          xs: "rgba(24, 43, 138, 0.98) !important",
+          sm: "#FFFFFF !important",
+        },
+
+        color: {
+          xs: "#FFFFFF !important",
+          sm: `${COLORS.primary} !important`,
+        },
+
+        borderColor: {
+          xs: "transparent !important",
+          sm: "#FFFFFF !important",
+        },
+
+        fontWeight: 800,
       },
 
+      // Previous / Next
       "& .MuiPaginationItem-previousNext": {
-        color: "#FFFFFF",
+        color: {
+          xs: "rgba(24, 43, 138, 0.98)",
+          sm: "#FFFFFF",
+        },
+
+        border: {
+          xs: "none",
+          sm: "1px solid rgba(255,255,255,0.25)",
+        },
       },
 
+      // Ellipsis
       "& .MuiPaginationItem-ellipsis": {
-        color: "#FFFFFF",
+        color: {
+          xs: "rgba(24, 43, 138, 0.98)",
+          sm: "#FFFFFF",
+        },
       },
     }}
   />
