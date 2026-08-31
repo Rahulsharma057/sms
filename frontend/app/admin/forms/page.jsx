@@ -436,7 +436,7 @@ function AdminFormsInner() {
                 width: 40,
                 height: 40,
                 borderRadius: 2,
-                bgcolor: "#7e22ce",
+                bgcolor: "#1c28ce",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -464,8 +464,8 @@ function AdminFormsInner() {
               textTransform: "none",
               fontWeight: 700,
               boxShadow: "none",
-              bgcolor: "#7e22ce",
-              "&:hover": { bgcolor: "#6b21a8" },
+              bgcolor: "#2a34b9",
+              "&:hover": { bgcolor: "#4528d3" },
               alignSelf: { xs: "stretch", sm: "auto" },
             }}
           >
