@@ -197,8 +197,8 @@ function IssuesInner() {
               borderBottom: "1px solid #e2e8f0",
               minHeight: 42,
               "& .MuiTab-root": { minHeight: 42, fontSize: { xs: "0.75rem", sm: "0.875rem" }, fontWeight: 600, textTransform: "none" },
-              "& .Mui-selected": { color: "#7e22ce !important" },
-              "& .MuiTabs-indicator": { bgcolor: "#7e22ce" },
+              "& .Mui-selected": { color: "#361fb8 !important" },
+              "& .MuiTabs-indicator": { bgcolor: "#321a9a" },
             }}
           >
             <Tab label="Common Problems" />

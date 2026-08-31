@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import {
   AppBar,
@@ -18,6 +19,7 @@ import {
   Divider,
   Collapse,
 } from "@mui/material";
+
 import {
   Menu as MenuIcon,
   Dashboard,
@@ -31,6 +33,7 @@ import {
   ExpandLess,
   Description,
 } from "@mui/icons-material";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "@mui/material/styles";
@@ -41,18 +44,22 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
+
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
 
-  // Forms this user can fill — populated below, rendered as a dropdown /
-  // expandable list, same visual language as the other nav items.
   const [visibleForms, setVisibleForms] = useState([]);
   const [formsMenuAnchor, setFormsMenuAnchor] = useState(null);
   const [formsDrawerOpen, setFormsDrawerOpen] = useState(false);
 
+  const BLUE = "rgba(23, 43, 143, 0.98)";
+  const LIGHT_BG = "#FFFFFF";
+
   useEffect(() => {
-    if (!user || user.role === "superadmin") return; // admins manage forms from /admin/forms instead
+    if (!user || user.role === "superadmin") return;
+
     api
       .get("/forms/visible")
       .then((res) => setVisibleForms(res.data || []))
@@ -62,123 +69,305 @@ export default function Navbar() {
   if (!user) return null;
 
   const teacherLinks = [
-    { label: "Dashboard", href: "/teacher/dashboard", icon: <Dashboard /> },
+    {
+      label: "Dashboard",
+      href: "/teacher/dashboard",
+      icon: <Dashboard />,
+    },
     {
       label: "New Report",
       href: "/teacher/report/new",
       icon: <ChecklistRtl />,
     },
-    { label: "My Tasks", href: "/teacher/tasks", icon: <Assignment /> },
-    { label: "Notice", href: "/teacher/notice", icon: <Description /> },
+    {
+      label: "My Tasks",
+      href: "/teacher/tasks",
+      icon: <Assignment />,
+    },
+    {
+      label: "Notice",
+      href: "/teacher/notice",
+      icon: <Description />,
+    },
   ];
+
   const adminLinks = [
-    { label: "Dashboard", href: "/admin/dashboard", icon: <Dashboard /> },
-    { label: "Teachers", href: "/admin/teachers", icon: <People /> },
-    { label: "Reports", href: "/admin/reports", icon: <ChecklistRtl /> },
-    { label: "Issue Tracker", href: "/admin/issues", icon: <ReportProblem /> },
-    { label: "Tasks", href: "/admin/tasks", icon: <Assignment /> },
-    { label: "Notice", href: "/admin/notice", icon: <Description /> },
-    { label: "Forms", href: "/admin/forms", icon: <DynamicForm /> },
+    {
+      label: "Dashboard",
+      href: "/admin/dashboard",
+      icon: <Dashboard />,
+    },
+    {
+      label: "Teachers",
+      href: "/admin/teachers",
+      icon: <People />,
+    },
+    {
+      label: "Reports",
+      href: "/admin/reports",
+      icon: <ChecklistRtl />,
+    },
+    {
+      label: "Issue Tracker",
+      href: "/admin/issues",
+      icon: <ReportProblem />,
+    },
+    {
+      label: "Tasks",
+      href: "/admin/tasks",
+      icon: <Assignment />,
+    },
+    {
+      label: "Notice",
+      href: "/admin/notice",
+      icon: <Description />,
+    },
+    {
+      label: "Forms",
+      href: "/admin/forms",
+      icon: <DynamicForm />,
+    },
   ];
-  const links = user.role === "superadmin" ? adminLinks : teacherLinks;
-  const showFormsMenu = user.role !== "superadmin" && visibleForms.length > 0;
+
+  const links =
+    user.role === "superadmin" ? adminLinks : teacherLinks;
+
+  const showFormsMenu =
+    user.role !== "superadmin" && visibleForms.length > 0;
 
   const goToForm = (slug) => {
     router.push(`/forms/${slug}`);
+
     setFormsMenuAnchor(null);
     setFormsDrawerOpen(false);
     setDrawerOpen(false);
   };
 
-  const NavList = (
-    <Box sx={{ width: 260 }}>
-      {/* DRAWER HEADER — branding */}
-      <Box sx={{ px: 2.2, py: 2.2, bgcolor: "rgb(22, 22, 126)", color: "white" }}>
-        <Typography
-          fontSize="0.68rem"
-          letterSpacing={0.5}
-          sx={{ opacity: 0.85, textTransform: "uppercase" }}
-        >
-          Sleepwell Foundation
-        </Typography>
-        <Typography fontWeight={800} fontSize="1rem" sx={{ mt: 0.3 }}>
-          {user.role === "superadmin"
-            ? "Super Admin Panel"
-            : "Duty Officer Checklist"}
-        </Typography>
-      </Box>
+  // =========================================================
+  // MOBILE DRAWER
+  // =========================================================
 
-      <List sx={{ py: 1 }}>
-        {links.map((l) => (
-          <ListItemButton
-            key={l.href}
-            selected={pathname === l.href}
-            onClick={() => {
-              router.push(l.href);
-              setDrawerOpen(false);
-            }}
-            sx={{
-              mx: 1,
-              my: 0.3,
-              borderRadius: 1.5,
-              "&.Mui-selected": {
-                bgcolor: "#f3e8ff",
-                "&:hover": { bgcolor: "#f3e8ff" },
-              },
-            }}
-          >
-            <ListItemIcon
+  const NavList = (
+    <Box
+      sx={{
+        width: 220,
+        height: "100%",
+        bgcolor: LIGHT_BG,
+      }}
+    >
+      {/* Drawer Header */}
+      <Box
+  sx={{
+    px: 2,
+    py: 1.5,
+    bgcolor: "#FFFFFF",
+    color: "#171717",
+    borderBottom: "1px solid rgba(23, 43, 143, 0.10)",
+  }}
+>
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "left",
+      gap: 1,
+      minWidth: 0,
+      flexDirection:"column"
+    }}
+  >
+    <Image
+      src="/sleepwell-logo.png"
+      alt="Sleepwell Foundation"
+      width={185}
+      height={44}
+      style={{
+        width: "165px",
+        height: "auto",
+        objectFit: "contain",
+      }}
+    />
+
+  {/*   <Box
+      sx={{
+        minWidth: 0,
+        flex: 1,
+      }}
+    >
+
+      <Typography
+        fontWeight={800}
+        fontSize="0.9rem"
+        sx={{
+          mt: 0.25,
+          color: BLUE,
+          lineHeight: 1.25,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {user.role === "superadmin"
+          ? "Super Admin Panel"
+          : "Duty Officer Checklist"}
+      </Typography>
+    </Box> */}
+  </Box>
+</Box>
+      <List sx={{ py: 1.2 }}>
+        {links.map((l) => {
+          const isActive = pathname === l.href;
+
+          return (
+            <ListItemButton
+              key={l.href}
+              selected={isActive}
+              onClick={() => {
+                router.push(l.href);
+                setDrawerOpen(false);
+              }}
               sx={{
-                color: pathname === l.href ? "primary.main" : "inherit",
-                minWidth: 40,
+                mx: 1,
+                my: 0.35,
+                minHeight: 44,
+                borderRadius: 1.5,
+
+                color: isActive ? "#FFFFFF" : "#202020",
+
+                bgcolor: isActive
+                  ? BLUE
+                  : "transparent",
+
+                "&:hover": {
+                  bgcolor: isActive
+                    ? BLUE
+                    : "rgba(23, 43, 143, 0.06)",
+                },
+
+                "&.Mui-selected": {
+                  bgcolor: BLUE,
+                  color: "#FFFFFF",
+
+                  "&:hover": {
+                    bgcolor: BLUE,
+                  },
+
+                  "& .MuiListItemIcon-root": {
+                    color: "#FFFFFF",
+                  },
+                },
               }}
             >
-              {l.icon}
-            </ListItemIcon>
-            <ListItemText
-              primary={l.label}
-              primaryTypographyProps={{
-                fontWeight: pathname === l.href ? 700 : 500,
-                fontSize: "0.9rem",
-              }}
-            />
-          </ListItemButton>
-        ))}
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: isActive
+                    ? "#FFFFFF"
+                    : "rgba(23, 43, 143, 0.85)",
+                }}
+              >
+                {l.icon}
+              </ListItemIcon>
 
-        {/* FORMS — expandable list, one row per form visible to this user */}
+              <ListItemText
+                primary={l.label}
+                primaryTypographyProps={{
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: "0.9rem",
+                }}
+              />
+            </ListItemButton>
+          );
+        })}
+
+        {/* Forms */}
         {showFormsMenu && (
           <>
             <ListItemButton
-              onClick={() => setFormsDrawerOpen((p) => !p)}
-              sx={{ mx: 1, my: 0.3, borderRadius: 1.5 }}
+              onClick={() =>
+                setFormsDrawerOpen((p) => !p)
+              }
+              sx={{
+                mx: 1,
+                my: 0.35,
+                minHeight: 44,
+                borderRadius: 1.5,
+                color: "#202020",
+
+                "&:hover": {
+                  bgcolor: "rgba(23, 43, 143, 0.06)",
+                },
+              }}
             >
-              <ListItemIcon sx={{ minWidth: 40 }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: "rgba(23, 43, 143, 0.85)",
+                }}
+              >
                 <DynamicForm />
               </ListItemIcon>
+
               <ListItemText
                 primary="Forms"
-                primaryTypographyProps={{ fontWeight: 500, fontSize: "0.9rem" }}
+                primaryTypographyProps={{
+                  fontWeight: 500,
+                  fontSize: "0.9rem",
+                }}
               />
+
               {formsDrawerOpen ? (
-                <ExpandLess fontSize="small" />
+                <ExpandLess
+                  fontSize="small"
+                  sx={{ color: BLUE }}
+                />
               ) : (
-                <ExpandMore fontSize="small" />
+                <ExpandMore
+                  fontSize="small"
+                  sx={{ color: BLUE }}
+                />
               )}
             </ListItemButton>
-            <Collapse in={formsDrawerOpen} timeout="auto" unmountOnExit>
-              <List component="div" disablePadding>
+
+            <Collapse
+              in={formsDrawerOpen}
+              timeout="auto"
+              unmountOnExit
+            >
+              <List
+                component="div"
+                disablePadding
+              >
                 {visibleForms.map((f) => (
                   <ListItemButton
                     key={f._id}
                     onClick={() => goToForm(f.slug)}
-                    sx={{ pl: 5, mx: 1, my: 0.2, borderRadius: 1.5 }}
+                    sx={{
+                      pl: 5,
+                      mx: 1,
+                      my: 0.2,
+                      minHeight: 40,
+                      borderRadius: 1.5,
+                      color: "#333333",
+
+                      "&:hover": {
+                        bgcolor:
+                          "rgba(23, 43, 143, 0.06)",
+                      },
+                    }}
                   >
-                    <ListItemIcon sx={{ minWidth: 32 }}>
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 32,
+                        color: BLUE,
+                      }}
+                    >
                       <Description fontSize="small" />
                     </ListItemIcon>
+
                     <ListItemText
                       primary={f.title}
-                      primaryTypographyProps={{ fontSize: "0.85rem" }}
+                      primaryTypographyProps={{
+                        fontSize: "0.85rem",
+                      }}
                     />
                   </ListItemButton>
                 ))}
@@ -190,121 +379,335 @@ export default function Navbar() {
     </Box>
   );
 
+  // =========================================================
+  // MAIN NAVBAR
+  // =========================================================
+
   return (
     <>
-      <AppBar position="sticky" color="primary" sx={{ bgcolor: "rgb(14, 14, 131)" }} elevation={2}>
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
+          bgcolor: "#FFFFFF",
+          color: "#171717",
+
+          // No rounded corners
+          borderRadius: 0,
+
+          // Only bottom shadow
+          boxShadow:
+            "0 3px 12px rgba(0, 0, 0, 0.10)",
+
+          borderBottom:
+            "1px solid rgba(0, 0, 0, 0.06)",
+        }}
+      >
+        <Toolbar
+          sx={{
+            minHeight: {
+              xs: 58,
+              sm: 64,
+            },
+
+            px: {
+              xs: 1.5,
+              sm: 2.5,
+              md: 3,
+            },
+          }}
+        >
+          {/* MOBILE MENU */}
           {isMobile && (
             <IconButton
-              color="inherit"
               edge="start"
               onClick={() => setDrawerOpen(true)}
-              sx={{ mr: 1 }}
+              sx={{
+                mr: 1,
+                color: BLUE,
+
+                "&:hover": {
+                  bgcolor: "rgba(23, 43, 143, 0.06)",
+                },
+              }}
             >
               <MenuIcon />
             </IconButton>
           )}
 
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            {isMobile ? (
-              <>
-                <Typography
-                  fontSize="0.62rem"
-                  letterSpacing={0.4}
+          {/* BRAND */}
+      <Box
+  sx={{
+    flexGrow: 1,
+    minWidth: 0,
+  }}
+>
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      gap: { xs: 0.7, sm: 1.2 },
+      minWidth: 0,
+    }}
+  >
+    <Image
+      src="/sleepwell-logo.png"
+      alt="Sleepwell Foundation"
+      width={150}
+      height={52}
+      style={{
+        width: "auto",
+        height: "auto",
+        maxWidth: "150px",
+        objectFit: "contain",
+      }}
+      sizes="(max-width: 600px) 105px, 150px"
+    />
+
+    <Typography
+      variant="h6"
+      noWrap
+      sx={{
+        fontWeight: 800,
+
+        fontSize: {
+          xs: "0.78rem",
+          sm: "0.95rem",
+          md: "1.15rem",
+        },
+
+        color: "#171717",
+
+        whiteSpace: "nowrap",
+
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+
+        lineHeight: 1.2,
+      }}
+    >
+      <Box
+        component="span"
+        sx={{
+          color: BLUE,
+          fontWeight: 700,
+        }}
+      >
+        —
+        {user.role === "superadmin"
+          ? " Super Admin"
+          : " Duty Officer Checklist"}
+      </Box>
+    </Typography>
+  </Box>
+</Box>
+          {/* DESKTOP NAV LINKS */}
+          {!isMobile &&
+            links.map((l) => {
+              const isActive = pathname === l.href;
+
+              return (
+                <Box
+                  key={l.href}
+                  onClick={() => router.push(l.href)}
                   sx={{
-                    opacity: 0.85,
-                    textTransform: "uppercase",
-                    lineHeight: 1.2,
+                    position: "relative",
+
+                    cursor: "pointer",
+
+                    display: "flex",
+                    alignItems: "center",
+
+                    px: 1.35,
+                    py: 2.05,
+                    mx: 0.15,
+
+                    fontSize: "0.87rem",
+
+                    fontWeight: isActive
+                      ? 700
+                      : 500,
+
+                     color: isActive
+                      ? "#28188b"
+                      : "#252525", 
+
+                /*     bgcolor: isActive
+                      ? BLUE
+                      : "transparent", */
+
+                    transition:
+                      "color 0.2s ease, background-color 0.2s ease",
+
+                    whiteSpace: "nowrap",
+
+                    // ACTIVE BUTTON
+                    borderRadius: isActive
+                      ? 1.2
+                      : 0,
+
+                    // HOVER ONLY BLUE BASE LINE
+                    "&::after": {
+                      content: '""',
+                      position: "absolute",
+                      left: 8,
+                      right: 8,
+                      bottom: 0,
+
+                      height: 3,
+
+                      bgcolor: BLUE,
+
+                      transform: isActive
+                        ? "scaleX(1)"
+                        : "scaleX(0)",
+
+                      transformOrigin: "center",
+
+                      transition:
+                        "transform 0.22s ease",
+
+                      borderRadius:
+                        "3px 3px 0 0",
+                    },
+
+                    "&:hover": {
+                      // NO BOX ON HOVER
+                  /*     bgcolor: isActive
+                        ? BLUE
+                        : "transparent", */
+
+                      color: BLUE,
+                    },
+
+                    "&:hover::after": {
+                      transform: "scaleX(1)",
+                    },
                   }}
                 >
-                  Sleepwell Foundation
-                </Typography>
-                <Typography
-                  fontWeight={700}
-                  fontSize="0.92rem"
-                  noWrap
-                  sx={{ lineHeight: 1.3 }}
-                >
-                  {user.role === "superadmin"
-                    ? "Super Admin"
-                    : "Duty Officer Checklist"}
-                </Typography>
-              </>
-            ) : (
-              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20 }}>
-                Sleepwell Foundation{" "}
-                {user.role === "superadmin"
-                  ? "— Super Admin"
-                  : "— Duty Officer Checklist"}
-              </Typography>
-            )}
-          </Box>
+                  {l.label}
+                </Box>
+              );
+            })}
 
-          {!isMobile &&
-            links.map((l) => (
-              <Box
-                key={l.href}
-                onClick={() => router.push(l.href)}
-                sx={{
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.6,
-                  px: 1.6,
-                  py: 0.9,
-                  mx: 0.4,
-                  borderRadius: 2,
-                  fontSize: "0.88rem",
-                  fontWeight: pathname === l.href ? 700 : 500,
-                  bgcolor:
-                    pathname === l.href
-                      ? "rgba(255,255,255,0.18)"
-                      : "transparent",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {l.label}
-              </Box>
-            ))}
-
-          {/* FORMS dropdown — desktop topbar version */}
+          {/* DESKTOP FORMS */}
           {!isMobile && showFormsMenu && (
             <>
               <Box
-                onClick={(e) => setFormsMenuAnchor(e.currentTarget)}
+                onClick={(e) =>
+                  setFormsMenuAnchor(
+                    e.currentTarget
+                  )
+                }
                 sx={{
+                  position: "relative",
+
                   cursor: "pointer",
+
                   display: "flex",
                   alignItems: "center",
                   gap: 0.4,
-                  px: 1.6,
-                  py: 0.9,
-                  mx: 0.4,
-                  borderRadius: 2,
-                  fontSize: "0.88rem",
+
+                  px: 1.35,
+                  py: 2.05,
+                  mx: 0.15,
+
+                  fontSize: "0.87rem",
                   fontWeight: 500,
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+
+                  color: "#252525",
+
                   whiteSpace: "nowrap",
+
+                  borderRadius: 0,
+
+                  "&:hover": {
+                    bgcolor: "transparent",
+                    color: BLUE,
+                  },
+
+                  "&::after": {
+                    content: '""',
+                    position: "absolute",
+                    left: 8,
+                    right: 8,
+                    bottom: 0,
+                    height: 3,
+
+                    bgcolor: BLUE,
+
+                    transform: formsMenuAnchor
+                      ? "scaleX(1)"
+                      : "scaleX(0)",
+
+                    transition:
+                      "transform 0.22s ease",
+
+                    borderRadius:
+                      "3px 3px 0 0",
+                  },
+
+                  "&:hover::after": {
+                    transform: "scaleX(1)",
+                  },
                 }}
               >
                 Forms
+
                 {formsMenuAnchor ? (
-                  <ExpandLess fontSize="small" />
+                  <ExpandLess
+                    fontSize="small"
+                    sx={{ color: BLUE }}
+                  />
                 ) : (
-                  <ExpandMore fontSize="small" />
+                  <ExpandMore
+                    fontSize="small"
+                  />
                 )}
               </Box>
+
               <Menu
                 anchorEl={formsMenuAnchor}
                 open={!!formsMenuAnchor}
-                onClose={() => setFormsMenuAnchor(null)}
+                onClose={() =>
+                  setFormsMenuAnchor(null)
+                }
+                PaperProps={{
+                  elevation: 4,
+                  sx: {
+                    mt: 1,
+                    minWidth: 210,
+                    borderRadius: 1.5,
+                    border:
+                      "1px solid rgba(0,0,0,0.06)",
+                  },
+                }}
               >
                 {visibleForms.map((f) => (
-                  <MenuItem key={f._id} onClick={() => goToForm(f.slug)}>
-                    <ListItemIcon sx={{ minWidth: 32 }}>
+                  <MenuItem
+                    key={f._id}
+                    onClick={() =>
+                      goToForm(f.slug)
+                    }
+                    sx={{
+                      fontSize: "0.87rem",
+
+                      "&:hover": {
+                        bgcolor:
+                          "rgba(23, 43, 143, 0.07)",
+                        color: BLUE,
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 32,
+                        color: BLUE,
+                      }}
+                    >
                       <Description fontSize="small" />
                     </ListItemIcon>
+
                     {f.title}
                   </MenuItem>
                 ))}
@@ -312,44 +715,121 @@ export default function Navbar() {
             </>
           )}
 
+          {/* USER AVATAR */}
           <IconButton
-            onClick={(e) => setAnchorEl(e.currentTarget)}
-            sx={{ ml: { xs: 0.5, sm: 1 } }}
+            onClick={(e) =>
+              setAnchorEl(e.currentTarget)
+            }
+            sx={{
+              ml: { xs: 0.5, sm: 1 },
+
+              "&:hover": {
+                bgcolor:
+                  "rgba(23, 43, 143, 0.06)",
+              },
+            }}
           >
             <Avatar
               sx={{
-                width: { xs: 30, sm: 34 },
-                height: { xs: 30, sm: 34 },
-                bgcolor: "secondary.main",
+                width: {
+                  xs: 30,
+                  sm: 35,
+                },
+
+                height: {
+                  xs: 30,
+                  sm: 35,
+                },
+
+                bgcolor: BLUE,
+
+                color: "#FFFFFF",
+
                 fontSize: "0.9rem",
+
+                fontWeight: 700,
               }}
             >
-              {user.name?.[0]?.toUpperCase() || "U"}
+              {user.name?.[0]?.toUpperCase() ||
+                "U"}
             </Avatar>
           </IconButton>
+
+          {/* USER MENU */}
           <Menu
             anchorEl={anchorEl}
             open={!!anchorEl}
             onClose={() => setAnchorEl(null)}
+            PaperProps={{
+              elevation: 4,
+              sx: {
+                mt: 1,
+                minWidth: 220,
+                borderRadius: 1.5,
+                border:
+                  "1px solid rgba(0,0,0,0.06)",
+              },
+            }}
           >
-            <MenuItem disabled sx={{ opacity: "1 !important" }}>
+            <MenuItem
+              disabled
+              sx={{
+                opacity: "1 !important",
+              }}
+            >
               <Box>
-                <Typography fontWeight={600} fontSize="0.85rem">
+                <Typography
+                  fontWeight={700}
+                  fontSize="0.85rem"
+                  color="#171717"
+                >
                   {user.name}
                 </Typography>
-                <Typography fontSize="0.75rem" color="text.secondary">
+
+                <Typography
+                  fontSize="0.75rem"
+                  color="text.secondary"
+                >
                   {user.email}
                 </Typography>
               </Box>
             </MenuItem>
+
             <Divider />
-            <MenuItem onClick={logout} sx={{ color: "error.main" }}>
-              <Logout fontSize="small" sx={{ mr: 1 }} /> Logout
+
+            <MenuItem
+              onClick={logout}
+              sx={{
+                color: "error.main",
+
+                "&:hover": {
+                  bgcolor:
+                    "rgba(211, 47, 47, 0.06)",
+                },
+              }}
+            >
+              <Logout
+                fontSize="small"
+                sx={{ mr: 1 }}
+              />
+
+              Logout
             </MenuItem>
           </Menu>
         </Toolbar>
       </AppBar>
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+
+      {/* MOBILE DRAWER */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 0,
+            bgcolor: "#FFFFFF",
+          },
+        }}
+      >
         {NavList}
       </Drawer>
     </>

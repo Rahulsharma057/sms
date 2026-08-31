@@ -360,6 +360,8 @@ function AdminTeachersInner() {
             startIcon={<PersonAdd />}
             onClick={() => setOpen(true)}
             sx={{
+              bgcolor: "#1d35ab",
+              "&:hover": { bgcolor: "#18a952" },
               borderRadius: 2,
               textTransform: "none",
               fontWeight: 600,
@@ -469,18 +471,31 @@ function AdminTeachersInner() {
           >
             <TableContainer sx={{ overflowX: "auto" }}>
               <Table size="small">
-                <TableHead>
-                  <TableRow
-                    sx={{ "& th": { fontWeight: 700, bgcolor: "#FAFAFB" } }}
-                  >
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Centre</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Active</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
+     <TableHead>
+  <TableRow
+    sx={{
+      bgcolor: "rgba(25, 47, 159, 0.98)",
+
+      "& th": {
+        bgcolor: "rgba(23, 43, 143, 0.98)",
+        color: "#FFFFFF",
+        fontWeight: 700,
+        fontSize: 11,
+        letterSpacing: "0.5px",
+        py: 1.25,
+        borderBottom: "none",
+        whiteSpace: "nowrap",
+      },
+    }}
+  >
+    <TableCell>Name</TableCell>
+    <TableCell>Email</TableCell>
+    <TableCell>Centre</TableCell>
+    <TableCell>Status</TableCell>
+    <TableCell align="right">Active</TableCell>
+    <TableCell align="right">Actions</TableCell>
+  </TableRow>
+</TableHead>
                 <TableBody>
                   {filtered.map((t) => (
                     <TableRow key={t._id} hover>

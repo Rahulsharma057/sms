@@ -67,7 +67,7 @@ import api from "../../../lib/api";
 
 const NOTICE_TYPES = {
   warning: { label: "Warning", color: "#dc2626", bg: "#fee2e2", icon: WarningAmberOutlined },
-  notice: { label: "Notice", color: "#7e22ce", bg: "#f3e8ff", icon: CampaignOutlined },
+  notice: { label: "Notice", color: "#4222ce", bg: "#f3e8ff", icon: CampaignOutlined },
   announcement: { label: "Announcement", color: "#0369a1", bg: "#e0f2fe", icon: NotificationsActiveOutlined },
   update: { label: "Update", color: "#0f766e", bg: "#d1fae5", icon: UpdateOutlined },
 };
@@ -477,7 +477,7 @@ function AdminNoticesInner() {
                 width: 40,
                 height: 40,
                 borderRadius: 2,
-                bgcolor: "#7e22ce",
+                bgcolor: "#172393",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -505,8 +505,8 @@ function AdminNoticesInner() {
               textTransform: "none",
               fontWeight: 700,
               boxShadow: "none",
-              bgcolor: "#7e22ce",
-              "&:hover": { bgcolor: "#6b21a8" },
+              bgcolor: "#1d1090",
+              "&:hover": { bgcolor: "#2f1c98" },
               alignSelf: { xs: "stretch", sm: "auto" },
             }}
           >

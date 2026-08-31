@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  ThemeProvider,
+  createTheme,
+} from "@mui/material/styles";
+import {
   Box,
   Container,
   Typography,
@@ -629,59 +633,77 @@ const shareReport = async (
   }
 };
 
-/* =====================================================
-   COMPONENT
-===================================================== */
+const reportTheme = createTheme({
+  palette: {
+    primary: {
+      main: "#1E3A5F",
+      dark: "#162F4D",
+      light: "#EFF6FF",
+      contrastText: "#FFFFFF",
+    },
+    secondary: {
+      main: "#2563A6",
+    },
+    error: {
+      main: "#DC2626",
+      dark: "#B91C1C",
+      light: "#FEF2F2",
+    },
+    success: {
+      main: "#15803D",
+      dark: "#166534",
+      light: "#F0FDF4",
+    },
+    background: {
+      default: "#F8FAFC",
+      paper: "#FFFFFF",
+    },
+    text: {
+      primary: "#0F172A",
+      secondary: "#64748B",
+    },
+    divider: "#E2E8F0",
+  },
+  typography: {
+    fontFamily: [
+      "Inter",
+      "Roboto",
+      "Arial",
+      "sans-serif",
+    ].join(","),
+  },
+  shape: {
+    borderRadius: 8,
+  },
+});
 
 function AllReportsInner() {
-  const [reports, setReports] =
-    useState([]);
+  const [reports, setReports] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [copyToast, setCopyToast] = useState("");
+  const [viewMode, setViewMode] = useState("table");
 
-  const [teachers, setTeachers] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [selectedReport, setSelectedReport] =
-    useState(null);
-
-  const [copyToast, setCopyToast] =
-    useState("");
-
-  const [viewMode, setViewMode] =
-    useState("table");
-
-  const [fromDate, setFromDate] =
-    useState(getToday());
-
-  const [toDate, setToDate] =
-    useState(getToday());
-
-  const [teacherFilter, setTeacherFilter] =
-    useState("");
-
-  const [urgentFilter, setUrgentFilter] =
-    useState("");
+  const [fromDate, setFromDate] = useState(getToday());
+  const [toDate, setToDate] = useState(getToday());
+  const [teacherFilter, setTeacherFilter] = useState("");
+  const [urgentFilter, setUrgentFilter] = useState("");
 
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const [deleteTarget, setDeleteTarget] =
-    useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const [deleting, setDeleting] =
-    useState(false);
-
-  /* -------------------------------------------------
+  /* =====================================================
      LOAD REPORTS
-  ------------------------------------------------- */
+     FUNCTIONALITY UNCHANGED
+  ===================================================== */
 
-  const loadReports = (
-    filters = {}
-  ) => {
+  const loadReports = (filters = {}) => {
     setLoading(true);
 
     const params = {
@@ -698,41 +720,37 @@ function AllReportsInner() {
     }
 
     if (filters.teacher) {
-      params.teacher =
-        filters.teacher;
+      params.teacher = filters.teacher;
     }
 
     if (filters.urgent !== "") {
-      params.urgent =
-        filters.urgent;
+      params.urgent = filters.urgent;
     }
 
     api
       .get("/reports", { params })
       .then((res) => {
-        // Backend now returns { reports, pagination } instead of a plain array.
         setReports(res.data?.reports || []);
+
         setTotalPages(
           res.data?.pagination?.totalPages || 1
         );
+
         setTotal(
           res.data?.pagination?.total || 0
         );
+
         setPage(
           res.data?.pagination?.page || 1
         );
       })
-      .finally(() =>
-        setLoading(false)
-      );
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     api
       .get("/users/teachers")
-      .then((res) =>
-        setTeachers(res.data)
-      );
+      .then((res) => setTeachers(res.data));
 
     loadReports({
       from: fromDate,
@@ -743,13 +761,12 @@ function AllReportsInner() {
     });
   }, []);
 
-  /* -------------------------------------------------
+  /* =====================================================
      FILTERS
-  ------------------------------------------------- */
+     FUNCTIONALITY UNCHANGED
+  ===================================================== */
 
-  const applyFilters = (
-    next = {}
-  ) => {
+  const applyFilters = (next = {}) => {
     const merged = {
       from:
         next.from !== undefined
@@ -771,7 +788,6 @@ function AllReportsInner() {
           ? next.urgent
           : urgentFilter,
 
-      // any filter change resets pagination back to page 1
       page: 1,
     };
 
@@ -783,20 +799,12 @@ function AllReportsInner() {
       setToDate(next.to);
     }
 
-    if (
-      next.teacher !== undefined
-    ) {
-      setTeacherFilter(
-        next.teacher
-      );
+    if (next.teacher !== undefined) {
+      setTeacherFilter(next.teacher);
     }
 
-    if (
-      next.urgent !== undefined
-    ) {
-      setUrgentFilter(
-        next.urgent
-      );
+    if (next.urgent !== undefined) {
+      setUrgentFilter(next.urgent);
     }
 
     loadReports(merged);
@@ -823,10 +831,7 @@ function AllReportsInner() {
       to: "",
     });
 
-  const handlePageChange = (
-    _e,
-    value
-  ) => {
+  const handlePageChange = (_e, value) => {
     loadReports({
       from: fromDate,
       to: toDate,
@@ -837,21 +842,16 @@ function AllReportsInner() {
   };
 
   const isUrgentReport = (r) => {
-    const t =
-      (r.urgentMatters || "")
-        .trim()
-        .toLowerCase();
+    const t = (r.urgentMatters || "")
+      .trim()
+      .toLowerCase();
 
-    return (
-      t &&
-      t !== "none"
-    );
+    return t && t !== "none";
   };
 
-  const urgentCount =
-    reports.filter(
-      isUrgentReport
-    ).length;
+  const urgentCount = reports.filter(
+    isUrgentReport
+  ).length;
 
   useEffect(() => {
     if (!copyToast) return;
@@ -861,13 +861,13 @@ function AllReportsInner() {
       2500
     );
 
-    return () =>
-      clearTimeout(t);
+    return () => clearTimeout(t);
   }, [copyToast]);
 
-  /* -------------------------------------------------
+  /* =====================================================
      DELETE
-  ------------------------------------------------- */
+     FUNCTIONALITY UNCHANGED
+  ===================================================== */
 
   const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
@@ -880,14 +880,13 @@ function AllReportsInner() {
       );
 
       setDeleteTarget(null);
+
       setCopyToast(
         "Report deleted successfully."
       );
 
-      // If the deleted item was the last one on this page, step back a page.
       const isLastItemOnPage =
-        reports.length === 1 &&
-        page > 1;
+        reports.length === 1 && page > 1;
 
       loadReports({
         from: fromDate,
@@ -900,8 +899,7 @@ function AllReportsInner() {
       });
     } catch (err) {
       setCopyToast(
-        err?.response?.data
-          ?.message ||
+        err?.response?.data?.message ||
           "Could not delete report."
       );
     } finally {
@@ -909,1688 +907,2358 @@ function AllReportsInner() {
     }
   };
 
+  /* =====================================================
+     SMALL UI HELPERS
+  ===================================================== */
+
+  const fieldSx = {
+    minWidth: 0,
+    "& .MuiInputBase-root": {
+      height: 38,
+      bgcolor: "background.paper",
+      fontSize: "0.82rem",
+    },
+    "& .MuiInputLabel-root": {
+      fontSize: "0.8rem",
+    },
+  };
+
+  const sectionPaperSx = {
+    border: "1px solid",
+    borderColor: "divider",
+    borderRadius: 1.5,
+    bgcolor: "background.paper",
+    boxShadow: "none",
+  };
+
+  const actionButtonSx = {
+    width: 32,
+    height: 32,
+    borderRadius: 1,
+  };
+
   return (
-    <Box
-      sx={{
-        bgcolor: "#faf9fb",
-        minHeight: "100vh",
-      }}
-    >
-      <Navbar />
-
-      <Container
-        maxWidth="lg"
-        sx={{ py: 3 }}
+    <ThemeProvider theme={reportTheme}>
+      <Box
+        sx={{
+          minHeight: "100%",
+          bgcolor: "background.default",
+          color: "text.primary",
+          overflowX: "hidden",
+        }}
       >
-        {/* HEADER */}
+        <Navbar />
 
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={1.2}
-          sx={{ mb: 2.5 }}
-        >
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2,
-              bgcolor: "#7e22ce",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Assignment
-              sx={{
-                color: "white",
-                fontSize: 22,
-              }}
-            />
-          </Box>
-
-          <Box>
-            <Typography
-              variant="h5"
-              fontWeight={800}
-            >
-              All Reports
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Inspection checklist
-              submissions across all
-              teachers
-            </Typography>
-          </Box>
-        </Stack>
-
-        {/* SUMMARY CARDS */}
-
-        <Grid
-          container
-          spacing={{
-            xs: 1,
-            sm: 2,
-          }}
+        <Container
+          maxWidth="lg"
           sx={{
-            mb: {
-              xs: 2,
-              sm: 3,
-            },
-          }}
-        >
-          <Grid item xs={4}>
-            <Card
-              elevation={0}
-              sx={{
-                border:
-                  "1px solid #e2e8f0",
-                borderRadius: 2,
-                height: "100%",
-              }}
-            >
-              <CardContent
-                sx={{
-                  p: {
-                    xs: 1,
-                    sm: 2,
-                  },
-                  "&:last-child": {
-                    pb: {
-                      xs: 1,
-                      sm: 2,
-                    },
-                  },
-                  display: "flex",
-                  alignItems: "center",
-                  gap: {
-                    xs: 0.8,
-                    sm: 1.5,
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    height: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    borderRadius: "50%",
-                    bgcolor: "#f3e8ff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent:
-                      "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Assignment
-                    sx={{
-                      color: "#7e22ce",
-                      fontSize: {
-                        xs: 16,
-                        sm: 22,
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    color="text.secondary"
-                    fontSize={{
-                      xs: "0.62rem",
-                      sm: "0.8rem",
-                    }}
-                    noWrap
-                  >
-                    Reports
-                  </Typography>
-
-                  <Typography
-                    fontWeight={800}
-                    fontSize={{
-                      xs: "1.1rem",
-                      sm: "1.5rem",
-                    }}
-                  >
-                    {total}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={4}>
-            <Card
-              elevation={0}
-              sx={{
-                border:
-                  "1px solid #e2e8f0",
-                borderRadius: 2,
-                height: "100%",
-              }}
-            >
-              <CardContent
-                sx={{
-                  p: {
-                    xs: 1,
-                    sm: 2,
-                  },
-                  "&:last-child": {
-                    pb: {
-                      xs: 1,
-                      sm: 2,
-                    },
-                  },
-                  display: "flex",
-                  alignItems: "center",
-                  gap: {
-                    xs: 0.8,
-                    sm: 1.5,
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    height: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    borderRadius: "50%",
-                    bgcolor: "#fee2e2",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent:
-                      "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Warning
-                    sx={{
-                      color: "#dc2626",
-                      fontSize: {
-                        xs: 16,
-                        sm: 22,
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    color="text.secondary"
-                    fontSize={{
-                      xs: "0.62rem",
-                      sm: "0.8rem",
-                    }}
-                    noWrap
-                  >
-                    Urgent
-                  </Typography>
-
-                  <Typography
-                    fontWeight={800}
-                    fontSize={{
-                      xs: "1.1rem",
-                      sm: "1.5rem",
-                    }}
-                  >
-                    {urgentCount}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={4}>
-            <Card
-              elevation={0}
-              sx={{
-                border:
-                  "1px solid #e2e8f0",
-                borderRadius: 2,
-                height: "100%",
-              }}
-            >
-              <CardContent
-                sx={{
-                  p: {
-                    xs: 1,
-                    sm: 2,
-                  },
-                  "&:last-child": {
-                    pb: {
-                      xs: 1,
-                      sm: 2,
-                    },
-                  },
-                  display: "flex",
-                  alignItems: "center",
-                  gap: {
-                    xs: 0.8,
-                    sm: 1.5,
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    height: {
-                      xs: 30,
-                      sm: 42,
-                    },
-                    borderRadius: "50%",
-                    bgcolor: "#ede9fe",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent:
-                      "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <CalendarMonth
-                    sx={{
-                      color: "#6d28d9",
-                      fontSize: {
-                        xs: 16,
-                        sm: 22,
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    color="text.secondary"
-                    fontSize={{
-                      xs: "0.62rem",
-                      sm: "0.8rem",
-                    }}
-                    noWrap
-                  >
-                    Range
-                  </Typography>
-
-                  <Typography
-                    fontWeight={800}
-                    fontSize={{
-                      xs: "0.72rem",
-                      sm: "1rem",
-                    }}
-                    noWrap
-                  >
-                    {fromDate || toDate
-                      ? `${fromDate || "…"} → ${toDate || "…"}`
-                      : "All dates"}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* FILTERS */}
-
-        <Paper
-          elevation={0}
-          sx={{
-            p: {
+            py: {
               xs: 1.5,
-              sm: 2.5,
+              sm: 2,
+              md: 2.5,
             },
-            border:
-              "1px solid #e2e8f0",
-            borderRadius: 2.5,
           }}
         >
+          {/* =================================================
+              PAGE HEADER
+          ================================================= */}
+
           <Stack
-            spacing={1}
+            direction="row"
+            alignItems="center"
+            spacing={1.25}
             sx={{ mb: 2 }}
           >
-            <Stack
-              direction="row"
-              spacing={0}
-              sx={{
-                flexWrap: "wrap",
-                gap: 1,
-              }}
-            >
-              <TextField
-                select
-                size="small"
-                label="Teacher"
-                value={teacherFilter}
-                onChange={(e) =>
-                  applyFilters({
-                    teacher:
-                      e.target.value,
-                  })
-                }
-                sx={{
-                  flex: {
-                    xs: "1 1 100%",
-                    sm: "0 1 200px",
-                  },
-                }}
-              >
-                <MenuItem value="">
-                  All teachers
-                </MenuItem>
-
-                {teachers.map((t) => (
-                  <MenuItem
-                    key={t._id}
-                    value={t._id}
-                  >
-                    {t.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                size="small"
-                label="Urgent"
-                value={urgentFilter}
-                onChange={(e) =>
-                  applyFilters({
-                    urgent:
-                      e.target.value,
-                  })
-                }
-                sx={{
-                  flex: {
-                    xs: "1 1 100%",
-                    sm: "0 1 160px",
-                  },
-                }}
-              >
-                <MenuItem value="">
-                  All
-                </MenuItem>
-
-                <MenuItem value="true">
-                  Urgent only
-                </MenuItem>
-
-                <MenuItem value="false">
-                  Not urgent
-                </MenuItem>
-              </TextField>
-
-              {/* DATE RANGE — replaces the single "Date" field */}
-
-              <TextField
-                label="From"
-                type="date"
-                size="small"
-                value={fromDate}
-                onChange={(e) =>
-                  applyFilters({
-                    from: e.target.value,
-                  })
-                }
-                inputProps={{
-                  max: toDate || getToday(),
-                }}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-                sx={{
-                  flex: {
-                    xs: "1 1 48%",
-                    sm: "0 1 150px",
-                  },
-                }}
-              />
-
-              <TextField
-                label="To"
-                type="date"
-                size="small"
-                value={toDate}
-                onChange={(e) =>
-                  applyFilters({
-                    to: e.target.value,
-                  })
-                }
-                inputProps={{
-                  min: fromDate || undefined,
-                  max: getToday(),
-                }}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-                sx={{
-                  flex: {
-                    xs: "1 1 48%",
-                    sm: "0 1 150px",
-                  },
-                }}
-              />
-            </Stack>
-
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              flexWrap="wrap"
-              gap={1}
-            >
-              <Stack
-                direction="row"
-                spacing={0.5}
-              >
-                <Button
-                  size="small"
-                  onClick={showAllDates}
-                  disabled={
-                    fromDate === "" &&
-                    toDate === ""
-                  }
-                  sx={{
-                    color: "#7e22ce",
-                    fontSize: {
-                      xs: "0.72rem",
-                      sm: "0.8125rem",
-                    },
-                    px: 1,
-                  }}
-                >
-                  Show all dates
-                </Button>
-
-                <Button
-                  size="small"
-                  startIcon={
-                    <FilterAltOff fontSize="small" />
-                  }
-                  onClick={resetFilters}
-                  color="inherit"
-                  sx={{
-                    fontSize: {
-                      xs: "0.72rem",
-                      sm: "0.8125rem",
-                    },
-                    px: 1,
-                  }}
-                >
-                  Reset filters
-                </Button>
-              </Stack>
-
-              <ToggleButtonGroup
-                value={viewMode}
-                exclusive
-                size="small"
-                onChange={(e, val) =>
-                  val &&
-                  setViewMode(val)
-                }
-                sx={{
-                  "& .MuiToggleButton-root":
-                    {
-                      px: 1,
-                      py: 0.4,
-                    },
-
-                  "& .MuiToggleButton-root.Mui-selected":
-                    {
-                      bgcolor:
-                        "#7e22ce",
-                      color: "white",
-
-                      "&:hover": {
-                        bgcolor:
-                          "#6b21a8",
-                      },
-                    },
-                }}
-              >
-                <ToggleButton value="table">
-                  <Tooltip title="Table view">
-                    <ViewList fontSize="small" />
-                  </Tooltip>
-                </ToggleButton>
-
-                <ToggleButton value="card">
-                  <Tooltip title="Card view">
-                    <ViewModule fontSize="small" />
-                  </Tooltip>
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Stack>
-          </Stack>
-
-          <Divider sx={{ mb: 1.5 }} />
-
-          {/* CONTENT */}
-
-          {loading ? (
             <Box
               sx={{
+                width: {
+                  xs: 36,
+                  sm: 40,
+                },
+                height: {
+                  xs: 36,
+                  sm: 40,
+                },
+                borderRadius: 1.5,
+                bgcolor: "primary.main",
+                color: "white",
                 display: "flex",
+                alignItems: "center",
                 justifyContent: "center",
-                py: 5,
+                position: "relative",
+                flexShrink: 0,
+                overflow: "hidden",
               }}
             >
-              <CircularProgress
-                size={24}
+              <Assignment
                 sx={{
-                  color: "#7e22ce",
+                  fontSize: {
+                    xs: 19,
+                    sm: 21,
+                  },
+                }}
+              />
+
+              <Box
+                sx={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: 8,
+                  height: 8,
+                  bgcolor: "error.main",
                 }}
               />
             </Box>
-          ) : reports.length === 0 ? (
-            <Box
-              sx={{
-                py: 4,
-                textAlign: "center",
-              }}
-            >
-              <Typography color="text.secondary">
-                No reports found for
-                the selected filters.
+
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: {
+                    xs: "1.25rem",
+                    sm: "1.5rem",
+                  },
+                  lineHeight: 1.15,
+                  fontWeight: 750,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                All Reports
+              </Typography>
+
+              <Typography
+                sx={{
+                  mt: 0.25,
+                  fontSize: {
+                    xs: "0.72rem",
+                    sm: "0.78rem",
+                  },
+                  color: "text.secondary",
+                }}
+              >
+                Inspection checklist submissions
+                across all teachers
               </Typography>
             </Box>
-          ) : viewMode === "table" ? (
-            <TableContainer
-              sx={{
-                overflowX: "auto",
-              }}
-            >
-              <Table size="small">
-                <TableHead>
-                  <TableRow
+          </Stack>
+
+          {/* =================================================
+              SUMMARY
+          ================================================= */}
+
+          <Grid
+            container
+            spacing={1.25}
+            sx={{ mb: 1.5 }}
+          >
+            {/* REPORTS */}
+
+            <Grid item xs={4}>
+              <Card
+                elevation={0}
+                sx={{
+                  ...sectionPaperSx,
+                  height: {
+                    xs: 70,
+                    sm: 76,
+                  },
+                }}
+              >
+                <CardContent
+                  sx={{
+                    p: {
+                      xs: 1,
+                      sm: 1.4,
+                    },
+                    "&:last-child": {
+                      pb: {
+                        xs: 1,
+                        sm: 1.4,
+                      },
+                    },
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: {
+                      xs: 0.8,
+                      sm: 1.2,
+                    },
+                  }}
+                >
+                  <Box
                     sx={{
-                      "& th": {
-                        bgcolor:
-                          "#faf5ff",
-                        fontWeight: 700,
+                      width: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      height: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      borderRadius: 1,
+                      bgcolor: "primary.light",
+                      color: "primary.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Assignment
+                      sx={{
+                        fontSize: {
+                          xs: 16,
+                          sm: 19,
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        color: "text.secondary",
+                        fontSize: {
+                          xs: "0.65rem",
+                          sm: "0.75rem",
+                        },
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      Reports
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: {
+                          xs: "1.05rem",
+                          sm: "1.3rem",
+                        },
+                        fontWeight: 750,
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {total}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* URGENT */}
+
+            <Grid item xs={4}>
+              <Card
+                elevation={0}
+                sx={{
+                  ...sectionPaperSx,
+                  height: {
+                    xs: 70,
+                    sm: 76,
+                  },
+                }}
+              >
+                <CardContent
+                  sx={{
+                    p: {
+                      xs: 1,
+                      sm: 1.4,
+                    },
+                    "&:last-child": {
+                      pb: {
+                        xs: 1,
+                        sm: 1.4,
+                      },
+                    },
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: {
+                      xs: 0.8,
+                      sm: 1.2,
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      height: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      borderRadius: 1,
+                      bgcolor: "error.light",
+                      color: "error.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Warning
+                      sx={{
+                        fontSize: {
+                          xs: 16,
+                          sm: 19,
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        color: "text.secondary",
+                        fontSize: {
+                          xs: "0.65rem",
+                          sm: "0.75rem",
+                        },
+                      }}
+                    >
+                      Urgent
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: {
+                          xs: "1.05rem",
+                          sm: "1.3rem",
+                        },
+                        fontWeight: 750,
+                        lineHeight: 1.2,
                         color:
-                          "#4c1d95",
+                          urgentCount > 0
+                            ? "error.main"
+                            : "text.primary",
+                      }}
+                    >
+                      {urgentCount}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* RANGE */}
+
+            <Grid item xs={4}>
+              <Card
+                elevation={0}
+                sx={{
+                  ...sectionPaperSx,
+                  height: {
+                    xs: 70,
+                    sm: 76,
+                  },
+                }}
+              >
+                <CardContent
+                  sx={{
+                    p: {
+                      xs: 1,
+                      sm: 1.4,
+                    },
+                    "&:last-child": {
+                      pb: {
+                        xs: 1,
+                        sm: 1.4,
+                      },
+                    },
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: {
+                      xs: 0.8,
+                      sm: 1.2,
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      height: {
+                        xs: 30,
+                        sm: 36,
+                      },
+                      borderRadius: 1,
+                      bgcolor: "#F1F5F9",
+                      color: "primary.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CalendarMonth
+                      sx={{
+                        fontSize: {
+                          xs: 16,
+                          sm: 19,
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        color: "text.secondary",
+                        fontSize: {
+                          xs: "0.65rem",
+                          sm: "0.75rem",
+                        },
+                      }}
+                    >
+                      Date Range
+                    </Typography>
+
+                    <Typography
+                      noWrap
+                      sx={{
+                        fontSize: {
+                          xs: "0.67rem",
+                          sm: "0.82rem",
+                        },
+                        fontWeight: 700,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {fromDate || toDate
+                        ? `${fromDate || "…"} → ${
+                            toDate || "…"
+                          }`
+                        : "All dates"}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* =================================================
+              FILTER TOOLBAR
+          ================================================= */}
+
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              p: {
+                xs: 1.25,
+                sm: 1.5,
+              },
+              mb: 1.5,
+              position: "relative",
+              overflow: "hidden",
+
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                bgcolor: "primary.main",
+              },
+            }}
+          >
+            <Stack spacing={1.25}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "1.5fr 1fr 1fr 1fr",
+                    md: "1.45fr 0.9fr 1fr 1fr",
+                  },
+                  gap: 1,
+                }}
+              >
+                <TextField
+                  select
+                  size="small"
+                  label="Teacher"
+                  value={teacherFilter}
+                  onChange={(e) =>
+                    applyFilters({
+                      teacher: e.target.value,
+                    })
+                  }
+                  sx={fieldSx}
+                >
+                  <MenuItem value="">
+                    All teachers
+                  </MenuItem>
+
+                  {teachers.map((t) => (
+                    <MenuItem
+                      key={t._id}
+                      value={t._id}
+                    >
+                      {t.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  select
+                  size="small"
+                  label="Urgent"
+                  value={urgentFilter}
+                  onChange={(e) =>
+                    applyFilters({
+                      urgent: e.target.value,
+                    })
+                  }
+                  sx={fieldSx}
+                >
+                  <MenuItem value="">
+                    All
+                  </MenuItem>
+
+                  <MenuItem value="true">
+                    Urgent only
+                  </MenuItem>
+
+                  <MenuItem value="false">
+                    Not urgent
+                  </MenuItem>
+                </TextField>
+
+                <TextField
+                  label="From"
+                  type="date"
+                  size="small"
+                  value={fromDate}
+                  onChange={(e) =>
+                    applyFilters({
+                      from: e.target.value,
+                    })
+                  }
+                  inputProps={{
+                    max: toDate || getToday(),
+                  }}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={fieldSx}
+                />
+
+                <TextField
+                  label="To"
+                  type="date"
+                  size="small"
+                  value={toDate}
+                  onChange={(e) =>
+                    applyFilters({
+                      to: e.target.value,
+                    })
+                  }
+                  inputProps={{
+                    min:
+                      fromDate || undefined,
+                    max: getToday(),
+                  }}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={fieldSx}
+                />
+              </Box>
+
+              <Stack
+                direction={{
+                  xs: "column",
+                  sm: "row",
+                }}
+                justifyContent="space-between"
+                alignItems={{
+                  xs: "stretch",
+                  sm: "center",
+                }}
+                gap={1}
+              >
+                <Stack
+                  direction="row"
+                  spacing={0.5}
+                  flexWrap="wrap"
+                >
+                  <Button
+                    size="small"
+                    onClick={showAllDates}
+                    disabled={
+                      fromDate === "" &&
+                      toDate === ""
+                    }
+                    sx={{
+                      height: 34,
+                      px: 1.2,
+                      color: "primary.main",
+                      fontSize: "0.76rem",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Show all dates
+                  </Button>
+
+                  <Button
+                    size="small"
+                    startIcon={
+                      <FilterAltOff
+                        sx={{ fontSize: 16 }}
+                      />
+                    }
+                    onClick={resetFilters}
+                    color="inherit"
+                    sx={{
+                      height: 34,
+                      px: 1.2,
+                      fontSize: "0.76rem",
+                      textTransform: "none",
+                      color: "text.secondary",
+                    }}
+                  >
+                    Reset filters
+                  </Button>
+                </Stack>
+
+                <ToggleButtonGroup
+                  value={viewMode}
+                  exclusive
+                  size="small"
+                  onChange={(e, val) =>
+                    val && setViewMode(val)
+                  }
+                  sx={{
+                    alignSelf: {
+                      xs: "flex-end",
+                      sm: "auto",
+                    },
+
+                    "& .MuiToggleButton-root": {
+                      minWidth: 38,
+                      height: 34,
+                      px: 1,
+                      borderColor:
+                        "divider",
+                      color:
+                        "text.secondary",
+                    },
+
+                    "& .MuiToggleButton-root.Mui-selected":
+                      {
+                        bgcolor:
+                          "primary.main",
+                        color: "white",
+                        borderColor:
+                          "primary.main",
+
+                        "&:hover": {
+                          bgcolor:
+                            "primary.dark",
+                        },
+                      },
+                  }}
+                >
+                  <ToggleButton value="table">
+                    <Tooltip title="Table view">
+                      <ViewList fontSize="small" />
+                    </Tooltip>
+                  </ToggleButton>
+
+                  <ToggleButton value="card">
+                    <Tooltip title="Card view">
+                      <ViewModule fontSize="small" />
+                    </Tooltip>
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Stack>
+            </Stack>
+          </Paper>
+
+          {/* =================================================
+              REPORT LIST
+          ================================================= */}
+
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              overflow: "hidden",
+            }}
+          >
+            {loading ? (
+              <Box
+                sx={{
+                  minHeight: 150,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Stack
+                  alignItems="center"
+                  spacing={1}
+                >
+                  <CircularProgress
+                    size={24}
+                    thickness={4}
+                    sx={{
+                      color: "primary.main",
+                    }}
+                  />
+
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                  >
+                    Loading reports...
+                  </Typography>
+                </Stack>
+              </Box>
+            ) : reports.length === 0 ? (
+              <Box
+                sx={{
+                  py: 4,
+                  px: 2,
+                  textAlign: "center",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    mx: "auto",
+                    mb: 1,
+                    borderRadius: "50%",
+                    bgcolor:
+                      "primary.light",
+                    color:
+                      "primary.main",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Description fontSize="small" />
+                </Box>
+
+                <Typography
+                  fontWeight={700}
+                  fontSize="0.95rem"
+                >
+                  No reports found
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                >
+                  No reports match the
+                  selected filters.
+                </Typography>
+              </Box>
+            ) : viewMode === "table" ? (
+              <>
+                {/* DESKTOP TABLE */}
+
+                <TableContainer
+                  sx={{
+                    width: "100%",
+                    overflowX: "auto",
+                  }}
+                >
+                  <Table
+                    size="small"
+                    sx={{
+                      minWidth: 650,
+
+                      "& .MuiTableCell-root": {
+                        borderColor:
+                          "divider",
+                        py: 0.9,
+                        fontSize:
+                          "0.78rem",
                       },
                     }}
                   >
-                    <TableCell>
-                      Date
-                    </TableCell>
+                    <TableHead>
+  <TableRow
+    sx={{
+      bgcolor: "rgba(30, 52, 162, 0.98)",
 
-                    <TableCell>
-                      Teacher
-                    </TableCell>
+      "& th": {
+        bgcolor: "rgba(23, 43, 143, 0.98) !important",
+        color: "#FFFFFF !important",
+        fontWeight: 700,
+        fontSize: "0.68rem",
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        py: 1.1,
+        borderBottom: "none",
+        whiteSpace: "nowrap",
+      },
+    }}
+  >
+    <TableCell>
+      Date
+    </TableCell>
 
-                    <TableCell>
-                      Centre Name
-                    </TableCell>
+    <TableCell>
+      Teacher
+    </TableCell>
 
-                    <TableCell>
-                      Urgent
-                    </TableCell>
+    <TableCell>
+      Centre Name
+    </TableCell>
 
-                    <TableCell align="right">
-                      Actions
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
+    <TableCell>
+      Urgent
+    </TableCell>
 
-                <TableBody>
-                  {reports.map((r) => {
-                    const urgent =
-                      isUrgentReport(r);
+    <TableCell align="right">
+      Actions
+    </TableCell>
+  </TableRow>
+</TableHead>
 
-                    return (
-                      <TableRow
-                        key={r._id}
-                        hover
-                        sx={{
-                          cursor:
-                            "pointer",
+                    <TableBody>
+                      {reports.map((r) => {
+                        const urgent =
+                          isUrgentReport(r);
 
-                          "&:hover": {
-                            bgcolor:
-                              "#faf5ff",
-                          },
-                        }}
-                        onClick={() =>
-                          setSelectedReport(
-                            r
-                          )
-                        }
-                      >
-                        <TableCell>
-                          {r.date}
-                        </TableCell>
-
-                        <TableCell>
-                          {r.teacher?.name ||
-                            "-"}
-                        </TableCell>
-
-                        <TableCell>
-                          {r.centreBatch ||
-                            "-"}
-                        </TableCell>
-
-                        <TableCell>
-                          {urgent ? (
-                            <Chip
-                              size="small"
-                              color="error"
-                              label="Yes"
-                            />
-                          ) : (
-                            <Chip
-                              size="small"
-                              label="No"
-                            />
-                          )}
-                        </TableCell>
-
-                        <TableCell
-                          align="right"
-                          onClick={(e) =>
-                            e.stopPropagation()
-                          }
-                        >
-                          <Tooltip title="View">
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                setSelectedReport(
-                                  r
-                                )
-                              }
-                              sx={{
-                                color:
-                                  "#7e22ce",
-                              }}
-                            >
-                              <Visibility fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title="Download PDF">
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                downloadReportPdf(
-                                  r
-                                )
-                              }
-                              sx={{
-                                color:
-                                  "#6b21a8",
-                              }}
-                            >
-                              <PictureAsPdf fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                setDeleteTarget(r)
-                              }
-                              sx={{
-                                color:
-                                  "#dc2626",
-                              }}
-                            >
-                              <DeleteOutline fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Grid
-              container
-              spacing={2}
-            >
-              {reports.map((r) => {
-                const urgent =
-                  isUrgentReport(r);
-
-                return (
-                  <Grid
-                    item
-                    xs={12}
-                    sm={6}
-                    md={4}
-                    key={r._id}
-                  >
-                    <Card
-                      elevation={0}
-                      sx={{
-                        border: urgent
-                          ? "1px solid #fecaca"
-                          : "1px solid #e2e8f0",
-                        borderRadius: 2.5,
-                        height: "100%",
-                        display: "flex",
-                        flexDirection:
-                          "column",
-                        cursor:
-                          "pointer",
-
-                        transition:
-                          "box-shadow 0.15s",
-
-                        "&:hover": {
-                          boxShadow:
-                            "0 4px 14px rgba(15,23,42,0.08)",
-                        },
-                      }}
-                      onClick={() =>
-                        setSelectedReport(
-                          r
-                        )
-                      }
-                    >
-                      <CardContent
-                        sx={{
-                          flexGrow: 1,
-                          display: "flex",
-                          flexDirection:
-                            "column",
-                          gap: 1,
-                        }}
-                      >
-                        <Stack
-                          direction="row"
-                          justifyContent="space-between"
-                          alignItems="flex-start"
-                        >
-                          <Stack
-                            direction="row"
-                            alignItems="center"
-                            spacing={0.8}
-                          >
-                            <CalendarMonth
-                              sx={{
-                                fontSize: 17,
-                                color:
-                                  "#7e22ce",
-                              }}
-                            />
-
-                            <Typography
-                              fontWeight={700}
-                              fontSize="0.9rem"
-                            >
-                              {r.date}
-                            </Typography>
-                          </Stack>
-
-                          {urgent ? (
-                            <Chip
-                              size="small"
-                              icon={
-                                <Warning
-                                  sx={{
-                                    fontSize:
-                                      "14px !important",
-                                  }}
-                                />
-                              }
-                              color="error"
-                              label="Urgent"
-                              sx={{
-                                height: 22,
-                                fontSize:
-                                  "0.68rem",
-                              }}
-                            />
-                          ) : (
-                            <Chip
-                              size="small"
-                              icon={
-                                <CheckCircle
-                                  sx={{
-                                    fontSize:
-                                      "14px !important",
-                                  }}
-                                />
-                              }
-                              label="Normal"
-                              sx={{
-                                height: 22,
-                                fontSize:
-                                  "0.68rem",
-                                bgcolor:
-                                  "#f0fdf4",
-                                color:
-                                  "#15803d",
-                              }}
-                            />
-                          )}
-                        </Stack>
-
-                        <Divider />
-
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          spacing={0.8}
-                        >
-                          <Person
-                            sx={{
-                              fontSize: 16,
-                              color:
-                                "text.secondary",
-                            }}
-                          />
-
-                          <Typography
-                            variant="body2"
-                            noWrap
-                          >
-                            {r.teacher?.name ||
-                              "-"}
-                          </Typography>
-                        </Stack>
-
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          noWrap
-                        >
-                          {r.centreBatch ||
-                            "-"}
-                        </Typography>
-                      </CardContent>
-
-                      <Divider />
-
-                      <Stack
-                        direction="row"
-                        justifyContent="flex-end"
-                        spacing={0.5}
-                        sx={{ p: 0.8 }}
-                        onClick={(e) =>
-                          e.stopPropagation()
-                        }
-                      >
-                        <Tooltip title="View">
-                          <IconButton
-                            size="small"
+                        return (
+                          <TableRow
+                            key={r._id}
+                            hover
                             onClick={() =>
                               setSelectedReport(
                                 r
                               )
                             }
                             sx={{
-                              color:
-                                "#7e22ce",
+                              cursor:
+                                "pointer",
+
+                              "&:hover": {
+                                bgcolor:
+                                  "#F8FBFF",
+                              },
                             }}
                           >
-                            <Visibility fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                            <TableCell>
+                              <Typography
+                                fontSize="0.78rem"
+                                fontWeight={650}
+                              >
+                                {r.date}
+                              </Typography>
+                            </TableCell>
 
-                        <Tooltip title="Download PDF">
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              downloadReportPdf(
-                                r
-                              )
-                            }
+                            <TableCell>
+                              <Typography
+                                fontSize="0.78rem"
+                                fontWeight={600}
+                              >
+                                {r.teacher?.name ||
+                                  "-"}
+                              </Typography>
+                            </TableCell>
+
+                            <TableCell>
+                              <Typography
+                                fontSize="0.78rem"
+                                color="text.secondary"
+                                noWrap
+                                sx={{
+                                  maxWidth: 260,
+                                }}
+                              >
+                                {r.centreBatch ||
+                                  "-"}
+                              </Typography>
+                            </TableCell>
+
+                            <TableCell>
+                              {urgent ? (
+                                <Chip
+                                  size="small"
+                                  icon={
+                                    <Warning
+                                      sx={{
+                                        fontSize:
+                                          "14px !important",
+                                      }}
+                                    />
+                                  }
+                                  label="Urgent"
+                                  color="error"
+                                  sx={{
+                                    height: 24,
+                                    fontSize:
+                                      "0.68rem",
+                                    fontWeight: 700,
+                                  }}
+                                />
+                              ) : (
+                                <Chip
+                                  size="small"
+                                  icon={
+                                    <CheckCircle
+                                      sx={{
+                                        fontSize:
+                                          "14px !important",
+                                      }}
+                                    />
+                                  }
+                                  label="Normal"
+                                  sx={{
+                                    height: 24,
+                                    fontSize:
+                                      "0.68rem",
+                                    fontWeight: 650,
+                                    bgcolor:
+                                      "success.light",
+                                    color:
+                                      "success.dark",
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+
+                            <TableCell
+                              align="right"
+                              onClick={(e) =>
+                                e.stopPropagation()
+                              }
+                            >
+                              <Tooltip title="View">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    setSelectedReport(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "primary.main",
+                                  }}
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Download PDF">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    downloadReportPdf(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "secondary.main",
+                                  }}
+                                >
+                                  <PictureAsPdf fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    setDeleteTarget(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "error.main",
+                                  }}
+                                >
+                                  <DeleteOutline fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : (
+              /* =================================================
+                 CARD VIEW
+              ================================================= */
+
+              <Box sx={{ p: 1.25 }}>
+                <Grid
+                  container
+                  spacing={1.25}
+                >
+                  {reports.map((r) => {
+                    const urgent =
+                      isUrgentReport(r);
+
+                    return (
+                      <Grid
+                        item
+                        xs={12}
+                        sm={6}
+                        md={4}
+                        key={r._id}
+                      >
+                        <Card
+                          elevation={0}
+                          onClick={() =>
+                            setSelectedReport(
+                              r
+                            )
+                          }
+                          sx={{
+                            height: "100%",
+                            border: "1px solid",
+                            borderColor:
+                              urgent
+                                ? "#FECACA"
+                                : "divider",
+                            borderRadius: 1.5,
+                            cursor:
+                              "pointer",
+                            transition:
+                              "border-color .15s, box-shadow .15s",
+
+                            "&:hover": {
+                              borderColor:
+                                urgent
+                                  ? "#FCA5A5"
+                                  : "#BFDBFE",
+                              boxShadow:
+                                "0 2px 8px rgba(15,23,42,.06)",
+                            },
+                          }}
+                        >
+                          <CardContent
                             sx={{
-                              color:
-                                "#6b21a8",
+                              p: 1.4,
+                              "&:last-child": {
+                                pb: 1.4,
+                              },
                             }}
                           >
-                            <PictureAsPdf fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                            <Stack
+                              direction="row"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              gap={1}
+                            >
+                              <Stack
+                                direction="row"
+                                alignItems="center"
+                                spacing={0.7}
+                              >
+                                <CalendarMonth
+                                  sx={{
+                                    fontSize: 16,
+                                    color:
+                                      "primary.main",
+                                  }}
+                                />
 
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              setDeleteTarget(r)
-                            }
-                            sx={{
-                              color:
-                                "#dc2626",
-                            }}
-                          >
-                            <DeleteOutline fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </Card>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          )}
+                                <Typography
+                                  fontSize="0.78rem"
+                                  fontWeight={700}
+                                >
+                                  {r.date}
+                                </Typography>
+                              </Stack>
 
-          {/* PAGINATION */}
+                              {urgent ? (
+                                <Chip
+                                  size="small"
+                                  icon={
+                                    <Warning
+                                      sx={{
+                                        fontSize:
+                                          "13px !important",
+                                      }}
+                                    />
+                                  }
+                                  color="error"
+                                  label="Urgent"
+                                  sx={{
+                                    height: 22,
+                                    fontSize:
+                                      "0.64rem",
+                                    fontWeight: 700,
+                                  }}
+                                />
+                              ) : (
+                                <Chip
+                                  size="small"
+                                  label="Normal"
+                                  sx={{
+                                    height: 22,
+                                    fontSize:
+                                      "0.64rem",
+                                    bgcolor:
+                                      "success.light",
+                                    color:
+                                      "success.dark",
+                                    fontWeight: 650,
+                                  }}
+                                />
+                              )}
+                            </Stack>
+
+                            <Divider
+                              sx={{ my: 1 }}
+                            />
+
+                            <Typography
+                              fontSize="0.8rem"
+                              fontWeight={650}
+                              noWrap
+                            >
+                              {r.teacher?.name ||
+                                "-"}
+                            </Typography>
+
+                            <Typography
+                              fontSize="0.73rem"
+                              color="text.secondary"
+                              noWrap
+                              sx={{ mt: 0.3 }}
+                            >
+                              {r.centreBatch ||
+                                "-"}
+                            </Typography>
+
+                            <Stack
+                              direction="row"
+                              justifyContent="flex-end"
+                              spacing={0.3}
+                              sx={{
+                                mt: 0.8,
+                              }}
+                              onClick={(e) =>
+                                e.stopPropagation()
+                              }
+                            >
+                              <Tooltip title="View">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    setSelectedReport(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "primary.main",
+                                  }}
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Download PDF">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    downloadReportPdf(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "secondary.main",
+                                  }}
+                                >
+                                  <PictureAsPdf fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    setDeleteTarget(
+                                      r
+                                    )
+                                  }
+                                  sx={{
+                                    ...actionButtonSx,
+                                    color:
+                                      "error.main",
+                                  }}
+                                >
+                                  <DeleteOutline fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Box>
+            )}
+
+            {/* =================================================
+                PAGINATION
+            ================================================= */}
 
           {!loading && reports.length > 0 && (
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              flexWrap="wrap"
-              gap={1}
-              sx={{
-                mt: 2,
-                pt: 1.5,
-                borderTop: "1px solid #e2e8f0",
-              }}
-            >
-              <Typography
-                variant="caption"
-                color="text.secondary"
-              >
-                Showing page {page} of{" "}
-                {totalPages} ({total}{" "}
-                total)
-              </Typography>
+  <Stack
+    direction={{ xs: "column", sm: "row" }}
+    justifyContent="space-between"
+    alignItems={{ xs: "stretch", sm: "center" }}
+    gap={0.5}
+    sx={{
+      px: 1.5,
+      py: 0.55,
+      bgcolor: "rgba(23, 43, 143, 0.98)",
+      borderTop: "1px solid rgba(255,255,255,0.15)",
+    }}
+  >
+    <Typography
+      variant="caption"
+      sx={{
+        fontSize: "0.68rem",
+        color: "#FFFFFF",
+        fontWeight: 600,
+      }}
+    >
+      Showing page{" "}
+      <Box component="span" sx={{ fontWeight: 800 }}>
+        {page}
+      </Box>{" "}
+      of{" "}
+      <Box component="span" sx={{ fontWeight: 800 }}>
+        {totalPages}
+      </Box>{" "}
+      ({total} total)
+    </Typography>
 
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={handlePageChange}
-                size="small"
-                shape="rounded"
+    <Pagination
+      count={totalPages}
+      page={page}
+      onChange={handlePageChange}
+      size="small"
+      shape="rounded"
+      sx={{
+        alignSelf: {
+          xs: "center",
+          sm: "auto",
+        },
+
+        "& .MuiPaginationItem-root": {
+          minWidth: 26,
+          width: 26,
+          height: 26,
+          fontSize: "0.68rem",
+          fontWeight: 700,
+          color: "#FFFFFF",
+          borderRadius: 1.2,
+          margin: "0 1px",
+        },
+
+        "& .MuiPaginationItem-root:hover": {
+          bgcolor: "rgba(255,255,255,0.15)",
+          color: "#FFFFFF",
+        },
+
+        "& .Mui-selected": {
+          bgcolor: "#FFFFFF !important",
+          color: "rgba(23, 43, 143, 0.98) !important",
+          fontWeight: 800,
+        },
+
+        "& .MuiPaginationItem-previousNext": {
+          color: "#FFFFFF",
+        },
+      }}
+    />
+  </Stack>
+)}
+          </Paper>
+        </Container>
+
+        {/* =====================================================
+            VIEW REPORT DIALOG
+        ===================================================== */}
+
+        <Dialog
+          open={!!selectedReport}
+          onClose={() =>
+            setSelectedReport(null)
+          }
+          maxWidth="sm"
+          fullWidth
+          fullScreen={false}
+          PaperProps={{
+            sx: {
+              borderRadius: {
+                xs: 1.5,
+                sm: 2,
+              },
+              maxHeight: "92vh",
+              overflow: "hidden",
+              m: {
+                xs: 1,
+                sm: 2,
+              },
+            },
+          }}
+        >
+          {selectedReport && (
+            <>
+              {/* DIALOG HEADER */}
+
+              <Box
                 sx={{
-                  "& .Mui-selected": {
+                  px: {
+                    xs: 1.75,
+                    sm: 2.25,
+                  },
+                  py: {
+                    xs: 1.5,
+                    sm: 1.8,
+                  },
+                  bgcolor:
+                    "primary.main",
+                  color: "white",
+                  position: "relative",
+
+                  "&::after": {
+                    content: '""',
+                    position:
+                      "absolute",
+                    left: 0,
+                    bottom: 0,
+                    width: 64,
+                    height: 3,
                     bgcolor:
-                      "#7e22ce !important",
-                    color: "white",
+                      "error.main",
                   },
                 }}
-              />
-            </Stack>
-          )}
-        </Paper>
-      </Container>
-
-      {/* =================================================
-          VIEW REPORT DIALOG
-      ================================================= */}
-
-      <Dialog
-        open={!!selectedReport}
-        onClose={() =>
-          setSelectedReport(null)
-        }
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 2.5,
-            overflow: "hidden",
-          },
-        }}
-      >
-        {selectedReport && (
-          <>
-            <Box
-              sx={{
-                px: 3,
-                py: 2.5,
-                bgcolor: "#1e3a5f",
-                color: "white",
-                position: "relative",
-              }}
-            >
-              <IconButton
-                onClick={() =>
-                  setSelectedReport(
-                    null
-                  )
-                }
-                sx={{
-                  position:
-                    "absolute",
-                  top: 10,
-                  right: 10,
-                  color: "white",
-                }}
               >
-                <Close />
-              </IconButton>
-
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1.5}
-              >
-                <Box
+                <IconButton
+                  onClick={() =>
+                    setSelectedReport(
+                      null
+                    )
+                  }
                   sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 2,
+                    position:
+                      "absolute",
+                    top: 7,
+                    right: 7,
+                    width: 32,
+                    height: 32,
+                    color: "white",
                     bgcolor:
-                      "rgba(255,255,255,0.15)",
-                    display: "flex",
-                    alignItems:
-                      "center",
-                    justifyContent:
-                      "center",
-                    flexShrink: 0,
+                      "rgba(255,255,255,.08)",
+
+                    "&:hover": {
+                      bgcolor:
+                        "rgba(255,255,255,.16)",
+                    },
                   }}
                 >
-                  <Description
-                    sx={{
-                      fontSize: 20,
-                    }}
-                  />
-                </Box>
+                  <Close fontSize="small" />
+                </IconButton>
 
-                <Box>
-                  <Typography
-                    variant="h6"
-                    fontWeight={700}
-                  >
-                    Duty Officer's
-                    Inspection
-                    Checklist
-                  </Typography>
-
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      opacity: 0.85,
-                    }}
-                  >
-                    Submitted by{" "}
-                    {selectedReport
-                      .teacher
-                      ?.name || "-"}{" "}
-                    — view only
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-
-            <DialogContent
-              dividers
-              sx={{
-                p: {
-                  xs: 1.5,
-                  sm: 2.5,
-                },
-                bgcolor: "#fafafa",
-              }}
-            >
-              <Stack spacing={2}>
-                {/* URGENT STATUS */}
-
-                {isUrgentReport(
-                  selectedReport
-                ) && (
-                  <Chip
-                    icon={<Warning />}
-                    color="error"
-                    label="Has urgent matters"
-                    sx={{
-                      alignSelf:
-                        "flex-start",
-                      fontWeight: 700,
-                    }}
-                  />
-                )}
-
-                {/* BASIC INFO */}
-
-                <Paper
-                  elevation={0}
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1.1}
                   sx={{
-                    p: 2,
-                    border:
-                      "1px solid #e2e8f0",
-                    borderRadius: 2,
+                    pr: 4,
                   }}
                 >
-                  <Grid
-                    container
-                    spacing={1.5}
+                  <Box
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 1,
+                      bgcolor:
+                        "rgba(255,255,255,.12)",
+                      display: "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+                      flexShrink: 0,
+                    }}
                   >
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        DATE
-                      </Typography>
+                    <Description
+                      sx={{
+                        fontSize: 18,
+                      }}
+                    />
+                  </Box>
 
-                      <Typography
-                        fontWeight={600}
-                      >
-                        {selectedReport.date}
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        NAME OF DUTY OFFICER
-                      </Typography>
-
-                      <Typography
-                        fontWeight={600}
-                      >
-                        {selectedReport.dutyOfficerName ||
-                          "-"}
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        ORGANIZATION NAME
-                      </Typography>
-
-                      <Typography
-                        fontWeight={600}
-                      >
-                        {selectedReport.centreBatch ||
-                          "-"}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-
-                {/* PROGRESS */}
-
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    border:
-                      "1px solid #e2e8f0",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    mb={0.5}
-                  >
+                  <Box>
                     <Typography
-                      variant="body2"
-                      fontWeight={600}
+                      sx={{
+                        fontSize: {
+                          xs: "0.95rem",
+                          sm: "1.05rem",
+                        },
+                        lineHeight: 1.2,
+                        fontWeight: 700,
+                      }}
                     >
-                      {getCompletedChecks(
-                        selectedReport
-                      )}{" "}
-                      of{" "}
-                      {getTotalChecks(
-                        selectedReport
-                      )}{" "}
-                      checks completed
+                      Duty Officer's
+                      Inspection
+                      Checklist
                     </Typography>
 
                     <Typography
-                      variant="body2"
-                      color="text.secondary"
+                      sx={{
+                        mt: 0.25,
+                        fontSize:
+                          "0.7rem",
+                        opacity: 0.82,
+                      }}
                     >
-                      {getTotalChecks(
-                        selectedReport
-                      ) > 0
-                        ? Math.round(
-                            (getCompletedChecks(
+                      Submitted by{" "}
+                      {selectedReport
+                        .teacher
+                        ?.name || "-"}{" "}
+                      — view only
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Box>
+
+              <DialogContent
+                dividers
+                sx={{
+                  p: {
+                    xs: 1.25,
+                    sm: 1.75,
+                  },
+                  bgcolor:
+                    "background.default",
+                  borderColor:
+                    "divider",
+                }}
+              >
+                <Stack spacing={1.25}>
+                  {/* URGENT STATUS */}
+
+                  {isUrgentReport(
+                    selectedReport
+                  ) && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems:
+                          "center",
+                        gap: 0.8,
+                        px: 1,
+                        py: 0.65,
+                        borderRadius: 1,
+                        bgcolor:
+                          "error.light",
+                        border:
+                          "1px solid #FECACA",
+                        color:
+                          "error.dark",
+                      }}
+                    >
+                      <Warning
+                        sx={{
+                          fontSize: 17,
+                        }}
+                      />
+
+                      <Typography
+                        fontSize="0.74rem"
+                        fontWeight={700}
+                      >
+                        Has urgent
+                        matters
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* BASIC INFORMATION */}
+
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      ...sectionPaperSx,
+                      p: {
+                        xs: 1.25,
+                        sm: 1.5,
+                      },
+                    }}
+                  >
+                    <SectionHeading>
+                      01&nbsp;&nbsp; Basic
+                      Information
+                    </SectionHeading>
+
+                    <Grid
+                      container
+                      spacing={{
+                        xs: 1,
+                        sm: 1.25,
+                      }}
+                      sx={{ mt: 0.1 }}
+                    >
+                      {[
+                        [
+                          "DATE",
+                          selectedReport.date,
+                        ],
+                        [
+                          "DUTY OFFICER",
+                          selectedReport.dutyOfficerName,
+                        ],
+                        [
+                          "ORGANIZATION NAME",
+                          selectedReport.centreBatch,
+                        ],
+                      ].map(
+                        ([label, value]) => (
+                          <Grid
+                            item
+                            xs={12}
+                            sm={6}
+                            key={label}
+                          >
+                            <InfoValue
+                              label={label}
+                              value={
+                                value ||
+                                "-"
+                              }
+                            />
+                          </Grid>
+                        )
+                      )}
+                    </Grid>
+                  </Paper>
+
+                  {/* PROGRESS */}
+
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      ...sectionPaperSx,
+                      p: {
+                        xs: 1.25,
+                        sm: 1.5,
+                      },
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      sx={{
+                        mb: 0.75,
+                      }}
+                    >
+                      <Box>
+                        <Typography
+                          fontSize="0.74rem"
+                          fontWeight={700}
+                        >
+                          Completion Progress
+                        </Typography>
+
+                        <Typography
+                          fontSize="0.67rem"
+                          color="text.secondary"
+                        >
+                          {getCompletedChecks(
+                            selectedReport
+                          )}{" "}
+                          of{" "}
+                          {getTotalChecks(
+                            selectedReport
+                          )}{" "}
+                          checks completed
+                        </Typography>
+                      </Box>
+
+                      <Typography
+                        fontSize="1rem"
+                        fontWeight={750}
+                        color="primary.main"
+                      >
+                        {getTotalChecks(
+                          selectedReport
+                        ) > 0
+                          ? Math.round(
+                              (getCompletedChecks(
+                                selectedReport
+                              ) /
+                                getTotalChecks(
+                                  selectedReport
+                                )) *
+                                100
+                            )
+                          : 0}
+                        %
+                      </Typography>
+                    </Stack>
+
+                    <LinearProgress
+                      variant="determinate"
+                      value={
+                        getTotalChecks(
+                          selectedReport
+                        ) > 0
+                          ? (getCompletedChecks(
                               selectedReport
                             ) /
                               getTotalChecks(
                                 selectedReport
                               )) *
-                              100
-                          )
-                        : 0}
-                      %
-                    </Typography>
-                  </Stack>
+                            100
+                          : 0
+                      }
+                      sx={{
+                        height: 6,
+                        borderRadius: 5,
+                        bgcolor: "#E2E8F0",
 
-                  <LinearProgress
-                    variant="determinate"
-                    value={
-                      getTotalChecks(
-                        selectedReport
-                      ) > 0
-                        ? (getCompletedChecks(
-                            selectedReport
-                          ) /
-                            getTotalChecks(
-                              selectedReport
-                            )) *
-                          100
-                        : 0
+                        "& .MuiLinearProgress-bar":
+                          {
+                            bgcolor:
+                              "primary.main",
+                            borderRadius: 5,
+                          },
+                      }}
+                    />
+                  </Paper>
+
+                  {/* CHECKLIST */}
+
+                  <SectionHeading>
+                    02&nbsp;&nbsp; Inspection
+                    Checklist
+                  </SectionHeading>
+
+                  {CHECKLIST_SECTIONS.map(
+                    (section, sectionIndex) => {
+                      const items =
+                        selectedReport[
+                          section.key
+                        ] || [];
+
+                      return (
+                        <Paper
+                          key={
+                            section.key
+                          }
+                          elevation={0}
+                          sx={{
+                            ...sectionPaperSx,
+                            overflow:
+                              "hidden",
+                          }}
+                        >
+                          {/* SECTION HEADER */}
+
+                          <Box
+                            sx={{
+                              px: {
+                                xs: 1.25,
+                                sm: 1.5,
+                              },
+                              py: 0.8,
+                              bgcolor:
+                                "primary.light",
+                              borderBottom:
+                                "1px solid",
+                              borderColor:
+                                "#DBEAFE",
+                            }}
+                          >
+                            <Stack
+                              direction="row"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              gap={1}
+                            >
+                              <Typography
+                                fontSize="0.75rem"
+                                fontWeight={750}
+                                color="primary.main"
+                              >
+                                {String(
+                                  sectionIndex +
+                                    1
+                                ).padStart(
+                                  2,
+                                  "0"
+                                )}{" "}
+                                &nbsp;
+                                {
+                                  section.title
+                                    .replace(
+                                      /^\d+\.\s*/,
+                                      ""
+                                    )
+                                }
+                              </Typography>
+
+                              <Typography
+                                fontSize="0.63rem"
+                                color="text.secondary"
+                                whiteSpace="nowrap"
+                              >
+                                {
+                                  section.timing
+                                }
+                              </Typography>
+                            </Stack>
+                          </Box>
+
+                          {/* ITEMS */}
+
+                          {items.length ===
+                          0 ? (
+                            <Typography
+                              sx={{
+                                p: 1.2,
+                                fontSize:
+                                  "0.7rem",
+                                color:
+                                  "text.secondary",
+                              }}
+                            >
+                              No checklist
+                              items
+                              available.
+                            </Typography>
+                          ) : (
+                            <Box
+                              sx={{
+                                px: {
+                                  xs: 1,
+                                  sm: 1.25,
+                                },
+                              }}
+                            >
+                              {items.map(
+                                (
+                                  item,
+                                  i
+                                ) => (
+                                  <Box
+                                    key={i}
+                                    sx={{
+                                      py: 0.8,
+                                      borderBottom:
+                                        i ===
+                                        items.length -
+                                          1
+                                          ? "none"
+                                          : "1px solid #F1F5F9",
+                                    }}
+                                  >
+                                    <Stack
+                                      direction="row"
+                                      alignItems="flex-start"
+                                      spacing={
+                                        0.7
+                                      }
+                                    >
+                                      <Checkbox
+                                        checked={
+                                          !!item.checked
+                                        }
+                                        disabled
+                                        size="small"
+                                        sx={{
+                                          p: 0,
+                                          mt: 0.05,
+
+                                          "&.Mui-disabled":
+                                            {
+                                              color:
+                                                item.checked
+                                                  ? "primary.main"
+                                                  : "#CBD5E1",
+                                            },
+                                        }}
+                                      />
+
+                                      <Typography
+                                        fontSize="0.76rem"
+                                        sx={{
+                                          pt: 0.15,
+                                          lineHeight: 1.45,
+                                          color:
+                                            "text.primary",
+                                        }}
+                                      >
+                                        {
+                                          item.label
+                                        }
+                                      </Typography>
+                                    </Stack>
+
+                                    {item.remark && (
+                                      <Typography
+                                        sx={{
+                                          ml: 3.25,
+                                          mt: 0.25,
+                                          fontSize:
+                                            "0.65rem",
+                                          lineHeight: 1.4,
+                                          color:
+                                            "text.secondary",
+                                          fontStyle:
+                                            "italic",
+                                        }}
+                                      >
+                                        Remark:{" "}
+                                        {
+                                          item.remark
+                                        }
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )
+                              )}
+                            </Box>
+                          )}
+                        </Paper>
+                      );
                     }
+                  )}
+
+                  {/* OBSERVATIONS */}
+
+                  <Paper
+                    elevation={0}
                     sx={{
-                      height: 7,
-                      borderRadius: 10,
-                      bgcolor:
-                        "#f1f5f9",
-
-                      "& .MuiLinearProgress-bar":
-                        {
-                          bgcolor:
-                            "#1e3a5f",
-                          borderRadius: 10,
-                        },
+                      ...sectionPaperSx,
+                      p: {
+                        xs: 1.25,
+                        sm: 1.5,
+                      },
                     }}
-                  />
-                </Paper>
+                  >
+                    <SectionHeading>
+                      03&nbsp;&nbsp; Summary of
+                      Key Observations
+                    </SectionHeading>
 
-                {/* CHECKLIST */}
-{CHECKLIST_SECTIONS.map((section) => (
-  <Paper
-    key={section.key}
-    elevation={0}
-    sx={{
-      border: "1px solid #e2e8f0",
-      borderRadius: 2,
-      overflow: "hidden",
-    }}
-  >
-    <Box sx={{ px: 1.5 }}>
-      {(selectedReport[section.key] || []).map((item, i) => (
-        <Box
-          key={i}
-          sx={{
-            py: 1,
-            borderBottom: "1px solid #f1f5f9",
-            "&:last-child": {
-              borderBottom: "none",
+                    <Stack spacing={1}>
+                      <ObservationRow
+                        label="Major positive observations"
+                        value={
+                          selectedReport.positiveObservations
+                        }
+                      />
+
+                      <ObservationRow
+                        label="Cleanliness / hygiene lapses noted"
+                        value={
+                          selectedReport.hygieneLapses
+                        }
+                      />
+
+                      <ObservationRow
+                        label="Maintenance items needing follow-up action"
+                        value={
+                          selectedReport.maintenanceFollowUp
+                        }
+                      />
+                    </Stack>
+                  </Paper>
+
+                  {/* URGENT MATTERS */}
+
+                  <Box
+                    sx={{
+                      border:
+                        "1px solid",
+                      borderColor:
+                        isUrgentReport(
+                          selectedReport
+                        )
+                          ? "#FECACA"
+                          : "divider",
+                      bgcolor:
+                        isUrgentReport(
+                          selectedReport
+                        )
+                          ? "error.light"
+                          : "background.paper",
+                      borderRadius: 1.5,
+                      p: {
+                        xs: 1.25,
+                        sm: 1.5,
+                      },
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={0.8}
+                      alignItems="flex-start"
+                    >
+                      <Warning
+                        sx={{
+                          fontSize: 17,
+                          color:
+                            isUrgentReport(
+                              selectedReport
+                            )
+                              ? "error.main"
+                              : "text.secondary",
+                          mt: 0.1,
+                        }}
+                      />
+
+                      <Box>
+                        <Typography
+                          fontSize="0.75rem"
+                          fontWeight={750}
+                          color={
+                            isUrgentReport(
+                              selectedReport
+                            )
+                              ? "error.dark"
+                              : "text.primary"
+                          }
+                        >
+                          04&nbsp;&nbsp;
+                          Urgent Matters
+                        </Typography>
+
+                        <Typography
+                          sx={{
+                            mt: 0.35,
+                            fontSize:
+                              "0.72rem",
+                            lineHeight: 1.5,
+                            color:
+                              isUrgentReport(
+                                selectedReport
+                              )
+                                ? "#7F1D1D"
+                                : "text.secondary",
+                          }}
+                        >
+                          {selectedReport.urgentMatters?.trim() ||
+                            "None reported"}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+
+                  {/* VERIFICATION */}
+
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      ...sectionPaperSx,
+                      p: {
+                        xs: 1.25,
+                        sm: 1.5,
+                      },
+                    }}
+                  >
+                    <SectionHeading>
+                      05&nbsp;&nbsp; Verification
+                    </SectionHeading>
+
+                    <Grid
+                      container
+                      spacing={1.25}
+                    >
+                      <Grid
+                        item
+                        xs={12}
+                        sm={6}
+                      >
+                        <InfoValue
+                          label="SIGNATURE OF DUTY OFFICER"
+                          value={
+                            selectedReport.signature ||
+                            "-"
+                          }
+                        />
+                      </Grid>
+
+                      <Grid
+                        item
+                        xs={12}
+                        sm={6}
+                      >
+                        <InfoValue
+                          label="COUNTERSIGNED BY"
+                          value={
+                            selectedReport.countersignedBy ||
+                            "-"
+                          }
+                        />
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {copyToast && (
+                    <Alert
+                      severity="info"
+                      onClose={() =>
+                        setCopyToast(
+                          ""
+                        )
+                      }
+                      sx={{
+                        py: 0,
+                        fontSize:
+                          "0.75rem",
+                      }}
+                    >
+                      {copyToast}
+                    </Alert>
+                  )}
+                </Stack>
+              </DialogContent>
+
+              {/* FOOTER */}
+
+              <DialogActions
+                sx={{
+                  px: {
+                    xs: 1.25,
+                    sm: 1.75,
+                  },
+                  py: 1,
+                  bgcolor:
+                    "background.paper",
+                  borderTop:
+                    "1px solid",
+                  borderColor:
+                    "divider",
+                  gap: 0.75,
+                }}
+              >
+                <Button
+                  startIcon={
+                    <Share fontSize="small" />
+                  }
+                  onClick={() =>
+                    shareReport(
+                      selectedReport,
+                      setCopyToast
+                    )
+                  }
+                  variant="outlined"
+                  sx={{
+                    height: 36,
+                    px: 1.5,
+                    fontSize:
+                      "0.76rem",
+                    textTransform:
+                      "none",
+                    borderColor:
+                      "divider",
+                    color:
+                      "text.primary",
+                  }}
+                >
+                  Share
+                </Button>
+
+                <Button
+                  variant="contained"
+                  startIcon={
+                    <PictureAsPdf fontSize="small" />
+                  }
+                  onClick={() =>
+                    downloadReportPdf(
+                      selectedReport
+                    )
+                  }
+                  sx={{
+                    height: 36,
+                    px: 1.6,
+                    fontSize:
+                      "0.76rem",
+                    textTransform:
+                      "none",
+                    bgcolor:
+                      "primary.main",
+                    boxShadow: "none",
+
+                    "&:hover": {
+                      bgcolor:
+                        "primary.dark",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  Download PDF
+                </Button>
+              </DialogActions>
+            </>
+          )}
+        </Dialog>
+
+        {/* =====================================================
+            DELETE CONFIRMATION
+        ===================================================== */}
+
+        <Dialog
+          open={!!deleteTarget}
+          onClose={() =>
+            !deleting &&
+            setDeleteTarget(null)
+          }
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              mx: 1.5,
             },
           }}
         >
-          <Stack
-            direction="row"
-            alignItems="flex-start"
-            spacing={0.5}
+          <DialogContent
+            sx={{
+              px: 2.5,
+              pt: 2.5,
+              pb: 1.5,
+            }}
           >
-            <Checkbox
-              checked={!!item.checked}
-              disabled
-              size="small"
-              sx={{
-                p: 0.5,
-                mt: -0.2,
-                "&.Mui-disabled": {
-                  color: item.checked
-                    ? "#1e3a5f"
-                    : "#cbd5e1",
-                },
-              }}
-            />
-
-            <Typography
-              fontSize="0.87rem"
-              sx={{ pt: 0.4 }}
+            <Stack
+              spacing={1}
+              alignItems="center"
+              textAlign="center"
             >
-              {item.label}
-            </Typography>
-          </Stack>
-
-          {item.remark && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                ml: 5,
-                fontStyle: "italic",
-              }}
-            >
-              Remark: {item.remark}
-            </Typography>
-          )}
-        </Box>
-      ))}
-    </Box>
-  </Paper>
-))}
-                {/* SUMMARY OF OBSERVATIONS */}
-
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    border:
-                      "1px solid #e2e8f0",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Typography
-                    fontWeight={700}
-                    color="#1e3a5f"
-                    mb={1.2}
-                  >
-                    4. Summary of Key
-                    Observations
-                  </Typography>
-
-                  <Stack spacing={1.5}>
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        MAJOR POSITIVE
-                        OBSERVATIONS
-                      </Typography>
-
-                      <Typography
-                        variant="body2"
-                      >
-                        {selectedReport.positiveObservations ||
-                          "None"}
-                      </Typography>
-                    </Box>
-
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        CLEANLINESS /
-                        HYGIENE LAPSES
-                        NOTED
-                      </Typography>
-
-                      <Typography
-                        variant="body2"
-                      >
-                        {selectedReport.hygieneLapses ||
-                          "None"}
-                      </Typography>
-                    </Box>
-
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        MAINTENANCE ITEMS
-                        NEEDING
-                        FOLLOW-UP ACTION
-                      </Typography>
-
-                      <Typography
-                        variant="body2"
-                      >
-                        {selectedReport.maintenanceFollowUp ||
-                          "None"}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-
-                {/* URGENT MATTERS */}
-
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    border:
-                      "1px solid #fde68a",
-                    bgcolor: "#fffbeb",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Typography
-                    fontWeight={700}
-                    color="#92400e"
-                    mb={0.8}
-                  >
-                    5. Urgent Matters
-                  </Typography>
-
-                  <Typography variant="body2">
-                    {selectedReport.urgentMatters ||
-                      "None"}
-                  </Typography>
-                </Paper>
-
-                {/* VERIFICATION */}
-
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    border:
-                      "1px solid #e2e8f0",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Grid
-                    container
-                    spacing={1.5}
-                  >
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        SIGNATURE OF DUTY
-                        OFFICER
-                      </Typography>
-
-                      <Typography
-                        fontWeight={600}
-                      >
-                        {selectedReport.signature ||
-                          "-"}
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        COUNTERSIGNED BY
-                      </Typography>
-
-                      <Typography
-                        fontWeight={600}
-                      >
-                        {selectedReport.countersignedBy ||
-                          "-"}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-
-                {copyToast && (
-                  <Alert
-                    severity="info"
-                    onClose={() =>
-                      setCopyToast("")
-                    }
-                  >
-                    {copyToast}
-                  </Alert>
-                )}
-              </Stack>
-            </DialogContent>
-
-            <DialogActions
-              sx={{
-                px: 2.5,
-                py: 1.5,
-                bgcolor: "white",
-              }}
-            >
-              <Button
-                startIcon={<Share />}
-                onClick={() =>
-                  shareReport(
-                    selectedReport,
-                    setCopyToast
-                  )
-                }
-              >
-                Share
-              </Button>
-
-              <Button
-                variant="contained"
-                startIcon={
-                  <PictureAsPdf />
-                }
-                onClick={() =>
-                  downloadReportPdf(
-                    selectedReport
-                  )
-                }
+              <Box
                 sx={{
-                  bgcolor: "#1e3a5f",
-                  "&:hover": {
-                    bgcolor:
-                      "#16293f",
-                  },
+                  width: 42,
+                  height: 42,
+                  borderRadius:
+                    "50%",
+                  bgcolor:
+                    "error.light",
+                  color:
+                    "error.main",
+                  display: "flex",
+                  alignItems:
+                    "center",
+                  justifyContent:
+                    "center",
                 }}
               >
-                Download PDF
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+                <DeleteOutline />
+              </Box>
 
-      {/* =================================================
-          DELETE CONFIRM DIALOG
-      ================================================= */}
+              <Typography
+                fontWeight={750}
+                fontSize="0.95rem"
+              >
+                Delete this report?
+              </Typography>
 
-      <Dialog
-        open={!!deleteTarget}
-        onClose={() =>
-          !deleting &&
-          setDeleteTarget(null)
-        }
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 2.5 },
+              <Typography
+                fontSize="0.72rem"
+                color="text.secondary"
+                sx={{
+                  maxWidth: 300,
+                }}
+              >
+                {deleteTarget?.date} —{" "}
+                {deleteTarget?.teacher
+                  ?.name ||
+                  "Unknown teacher"}
+                . This action cannot
+                be undone.
+              </Typography>
+            </Stack>
+          </DialogContent>
+
+          <DialogActions
+            sx={{
+              px: 2.5,
+              pb: 2,
+              justifyContent:
+                "center",
+              gap: 0.75,
+            }}
+          >
+            <Button
+              onClick={() =>
+                setDeleteTarget(null)
+              }
+              disabled={deleting}
+              sx={{
+                height: 36,
+                px: 1.75,
+                fontSize:
+                  "0.76rem",
+                textTransform:
+                  "none",
+                color:
+                  "text.secondary",
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              color="error"
+              onClick={
+                handleDeleteConfirmed
+              }
+              disabled={deleting}
+              startIcon={
+                deleting ? (
+                  <CircularProgress
+                    size={15}
+                    color="inherit"
+                  />
+                ) : (
+                  <DeleteOutline fontSize="small" />
+                )
+              }
+              sx={{
+                height: 36,
+                px: 1.75,
+                fontSize:
+                  "0.76rem",
+                textTransform:
+                  "none",
+                fontWeight: 700,
+                boxShadow: "none",
+              }}
+            >
+              {deleting
+                ? "Deleting..."
+                : "Delete"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </ThemeProvider>
+  );
+}
+
+/* =====================================================
+   REUSABLE UI-ONLY COMPONENTS
+===================================================== */
+
+function SectionHeading({ children }) {
+  return (
+    <Typography
+      sx={{
+        fontSize: "0.76rem",
+        fontWeight: 750,
+        color: "primary.main",
+        lineHeight: 1.3,
+        mb: 1,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
+function InfoValue({ label, value }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        sx={{
+          fontSize: "0.61rem",
+          lineHeight: 1.2,
+          color: "text.secondary",
+          fontWeight: 650,
+          letterSpacing: "0.035em",
         }}
       >
-        <DialogContent
-          sx={{ pt: 3 }}
-        >
-          <Stack
-            spacing={1}
-            alignItems="center"
-            textAlign="center"
-          >
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                bgcolor: "#fee2e2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent:
-                  "center",
-              }}
-            >
-              <DeleteOutline
-                sx={{
-                  color: "#dc2626",
-                }}
-              />
-            </Box>
+        {label}
+      </Typography>
 
-            <Typography fontWeight={800}>
-              Delete this report?
-            </Typography>
+      <Typography
+        sx={{
+          mt: 0.25,
+          fontSize: "0.76rem",
+          lineHeight: 1.4,
+          color: "text.primary",
+          fontWeight: 600,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+}
 
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              {deleteTarget?.date} —{" "}
-              {deleteTarget?.teacher
-                ?.name ||
-                "Unknown teacher"}
-              . This action cannot be
-              undone.
-            </Typography>
-          </Stack>
-        </DialogContent>
+function ObservationRow({ label, value }) {
+  return (
+    <Box
+      sx={{
+        py: 0.65,
+        borderBottom: "1px solid #F1F5F9",
 
-        <DialogActions
-          sx={{
-            px: 3,
-            pb: 2.5,
-            justifyContent: "center",
-            gap: 1,
-          }}
-        >
-          <Button
-            onClick={() =>
-              setDeleteTarget(null)
-            }
-            disabled={deleting}
-            sx={{
-              textTransform: "none",
-            }}
-          >
-            Cancel
-          </Button>
+        "&:last-child": {
+          borderBottom: "none",
+          pb: 0,
+        },
 
-          <Button
-            variant="contained"
-            color="error"
-            onClick={
-              handleDeleteConfirmed
-            }
-            disabled={deleting}
-            startIcon={
-              deleting ? (
-                <CircularProgress
-                  size={16}
-                  color="inherit"
-                />
-              ) : (
-                <DeleteOutline />
-              )
-            }
-            sx={{
-              textTransform: "none",
-              fontWeight: 700,
-            }}
-          >
-            {deleting
-              ? "Deleting..."
-              : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        "&:first-child": {
+          pt: 0,
+        },
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: "0.62rem",
+          fontWeight: 700,
+          color: "text.secondary",
+          textTransform: "uppercase",
+          letterSpacing: "0.025em",
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          mt: 0.25,
+          fontSize: "0.72rem",
+          lineHeight: 1.5,
+          color: "text.primary",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {value?.trim() || "None"}
+      </Typography>
     </Box>
   );
 }
@@ -2602,3 +3270,4 @@ export default function AllReportsPage() {
     </ProtectedRoute>
   );
 }
+
