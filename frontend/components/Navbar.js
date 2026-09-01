@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import {
   AppBar,
   Toolbar,
@@ -18,6 +19,9 @@ import {
   useMediaQuery,
   Divider,
   Collapse,
+  Badge,
+  Popover,
+  CircularProgress,
 } from "@mui/material";
 
 import {
@@ -32,7 +36,12 @@ import {
   ExpandMore,
   ExpandLess,
   Description,
+  NotificationsNone,
+  AssignmentOutlined,
+  ChatBubbleOutline,
+  CheckCircleOutline,
 } from "@mui/icons-material";
+
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
@@ -54,8 +63,20 @@ export default function Navbar() {
   const [formsMenuAnchor, setFormsMenuAnchor] = useState(null);
   const [formsDrawerOpen, setFormsDrawerOpen] = useState(false);
 
+  // =========================================================
+  // NOTIFICATIONS
+  // =========================================================
+
+  const [notificationAnchor, setNotificationAnchor] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
   const BLUE = "rgba(23, 43, 143, 0.98)";
   const LIGHT_BG = "#FFFFFF";
+
+  // =========================================================
+  // LOAD FORMS
+  // =========================================================
 
   useEffect(() => {
     if (!user || user.role === "superadmin") return;
@@ -66,7 +87,153 @@ export default function Navbar() {
       .catch(() => {});
   }, [user]);
 
+  // =========================================================
+  // LOAD NOTIFICATIONS
+  // =========================================================
+
+  const loadNotifications = async ({ silent = false } = {}) => {
+    if (!user) return;
+
+    try {
+      if (!silent) setNotificationLoading(true);
+
+      const res = await api.get("/notifications");
+
+      setNotifications(
+        Array.isArray(res.data)
+          ? res.data
+          : res.data?.notifications || []
+      );
+    } catch (error) {
+      console.error("Could not load notifications:", error);
+    } finally {
+      if (!silent) setNotificationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    loadNotifications();
+
+    // Refresh notifications every 10 seconds
+    const interval = setInterval(() => {
+      loadNotifications({ silent: true });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // =========================================================
+  // NOTIFICATION HELPERS
+  // =========================================================
+
+  const unreadNotifications = notifications.filter(
+    (notification) => !notification.isRead
+  );
+
+  const unreadCount = unreadNotifications.length;
+
+  const handleNotificationOpen = (event) => {
+    setNotificationAnchor(event.currentTarget);
+    loadNotifications();
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchor(null);
+  };
+
+  const markNotificationRead = async (notification) => {
+    try {
+      if (!notification.isRead) {
+        await api.patch(`/notifications/${notification._id}/read`);
+
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item._id === notification._id
+              ? { ...item, isRead: true }
+              : item
+          )
+        );
+      }
+
+      // If notification belongs to a task, open task
+      if (notification.task) {
+        const taskId =
+          notification.task?._id || notification.task;
+
+        if (user.role === "teacher") {
+          router.push(`/teacher/tasks?task=${taskId}`);
+        } else if (user.role === "superadmin") {
+          router.push(`/admin/tasks?task=${taskId}`);
+        }
+
+        setNotificationAnchor(null);
+      }
+    } catch (error) {
+      console.error("Could not mark notification as read:", error);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await api.patch("/notifications/read-all");
+
+      setNotifications((prev) =>
+        prev.map((item) => ({
+          ...item,
+          isRead: true,
+        }))
+      );
+    } catch (error) {
+      console.error("Could not mark all notifications as read:", error);
+    }
+  };
+
+  // =========================================================
+  // NOTIFICATION ICON
+  // =========================================================
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case "NEW_TASK":
+        return <AssignmentOutlined fontSize="small" />;
+
+      case "NEW_MESSAGE":
+        return <ChatBubbleOutline fontSize="small" />;
+
+      case "TASK_STATUS":
+        return <CheckCircleOutline fontSize="small" />;
+
+      default:
+        return <NotificationsNone fontSize="small" />;
+    }
+  };
+
+  const formatNotificationTime = (date) => {
+    if (!date) return "";
+
+    const d = new Date(date);
+
+    if (Number.isNaN(d.getTime())) return "";
+
+    return d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // =========================================================
+  // USER CHECK
+  // =========================================================
+
   if (!user) return null;
+
+  // =========================================================
+  // LINKS
+  // =========================================================
 
   const teacherLinks = [
     {
@@ -156,62 +323,39 @@ export default function Navbar() {
       }}
     >
       {/* Drawer Header */}
+
       <Box
-  sx={{
-    px: 2,
-    py: 1.5,
-    bgcolor: "#FFFFFF",
-    color: "#171717",
-    borderBottom: "1px solid rgba(23, 43, 143, 0.10)",
-  }}
->
-  <Box
-    sx={{
-      display: "flex",
-      alignItems: "left",
-      gap: 1,
-      minWidth: 0,
-      flexDirection:"column"
-    }}
-  >
-    <Image
-      src="/sleepwell-logo.png"
-      alt="Sleepwell Foundation"
-      width={185}
-      height={44}
-      style={{
-        width: "165px",
-        height: "auto",
-        objectFit: "contain",
-      }}
-    />
-
-  {/*   <Box
-      sx={{
-        minWidth: 0,
-        flex: 1,
-      }}
-    >
-
-      <Typography
-        fontWeight={800}
-        fontSize="0.9rem"
         sx={{
-          mt: 0.25,
-          color: BLUE,
-          lineHeight: 1.25,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
+          px: 2,
+          py: 1.5,
+          bgcolor: "#FFFFFF",
+          color: "#171717",
+          borderBottom: "1px solid rgba(23, 43, 143, 0.10)",
         }}
       >
-        {user.role === "superadmin"
-          ? "Super Admin Panel"
-          : "Duty Officer Checklist"}
-      </Typography>
-    </Box> */}
-  </Box>
-</Box>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "left",
+            gap: 1,
+            minWidth: 0,
+            flexDirection: "column",
+          }}
+        >
+          <Image
+            src="/sleepwell-logo.png"
+            alt="Sleepwell Foundation"
+            width={185}
+            height={44}
+            style={{
+              width: "165px",
+              height: "auto",
+              objectFit: "contain",
+            }}
+          />
+        </Box>
+      </Box>
+
       <List sx={{ py: 1.2 }}>
         {links.map((l) => {
           const isActive = pathname === l.href;
@@ -279,6 +423,7 @@ export default function Navbar() {
         })}
 
         {/* Forms */}
+
         {showFormsMenu && (
           <>
             <ListItemButton
@@ -332,10 +477,7 @@ export default function Navbar() {
               timeout="auto"
               unmountOnExit
             >
-              <List
-                component="div"
-                disablePadding
-              >
+              <List component="div" disablePadding>
                 {visibleForms.map((f) => (
                   <ListItemButton
                     key={f._id}
@@ -380,7 +522,7 @@ export default function Navbar() {
   );
 
   // =========================================================
-  // MAIN NAVBAR
+  // NAVBAR
   // =========================================================
 
   return (
@@ -391,11 +533,8 @@ export default function Navbar() {
         sx={{
           bgcolor: "#FFFFFF",
           color: "#171717",
-
-          // No rounded corners
           borderRadius: 0,
 
-          // Only bottom shadow
           boxShadow:
             "0 3px 12px rgba(0, 0, 0, 0.10)",
 
@@ -418,6 +557,7 @@ export default function Navbar() {
           }}
         >
           {/* MOBILE MENU */}
+
           {isMobile && (
             <IconButton
               edge="start"
@@ -427,7 +567,8 @@ export default function Navbar() {
                 color: BLUE,
 
                 "&:hover": {
-                  bgcolor: "rgba(23, 43, 143, 0.06)",
+                  bgcolor:
+                    "rgba(23, 43, 143, 0.06)",
                 },
               }}
             >
@@ -436,72 +577,75 @@ export default function Navbar() {
           )}
 
           {/* BRAND */}
-      <Box
-  sx={{
-    flexGrow: 1,
-    minWidth: 0,
-  }}
->
-  <Box
-    sx={{
-      display: "flex",
-      alignItems: "center",
-      gap: { xs: 0.7, sm: 1.2 },
-      minWidth: 0,
-    }}
-  >
-    <Image
-      src="/sleepwell-logo.png"
-      alt="Sleepwell Foundation"
-      width={150}
-      height={52}
-      style={{
-        width: "auto",
-        height: "auto",
-        maxWidth: "150px",
-        objectFit: "contain",
-      }}
-      sizes="(max-width: 600px) 105px, 150px"
-    />
 
-    <Typography
-      variant="h6"
-      noWrap
-      sx={{
-        fontWeight: 800,
+          <Box
+            sx={{
+              flexGrow: 1,
+              minWidth: 0,
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: { xs: 0.7, sm: 1.2 },
+                minWidth: 0,
+              }}
+            >
+              <Image
+                src="/sleepwell-logo.png"
+                alt="Sleepwell Foundation"
+                width={150}
+                height={52}
+                style={{
+                  width: "auto",
+                  height: "auto",
+                  maxWidth: "150px",
+                  objectFit: "contain",
+                }}
+                sizes="(max-width: 600px) 105px, 150px"
+              />
 
-        fontSize: {
-          xs: "0.78rem",
-          sm: "0.95rem",
-          md: "1.15rem",
-        },
+              <Typography
+                variant="h6"
+                noWrap
+                sx={{
+                  fontWeight: 800,
 
-        color: "#171717",
+                  fontSize: {
+                    xs: "0.78rem",
+                    sm: "0.95rem",
+                    md: "1.15rem",
+                  },
 
-        whiteSpace: "nowrap",
+                  color: "#171717",
 
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
 
-        lineHeight: 1.2,
-      }}
-    >
-      <Box
-        component="span"
-        sx={{
-          color: BLUE,
-          fontWeight: 700,
-        }}
-      >
-        —
-        {user.role === "superadmin"
-          ? " Super Admin"
-          : " Duty Officer Checklist"}
-      </Box>
-    </Typography>
-  </Box>
-</Box>
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+
+                  lineHeight: 1.2,
+                }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    color: BLUE,
+                    fontWeight: 700,
+                  }}
+                >
+                  —
+                  {user.role === "superadmin"
+                    ? " Super Admin"
+                    : " Duty Officer Checklist"}
+                </Box>
+              </Typography>
+            </Box>
+          </Box>
+
           {/* DESKTOP NAV LINKS */}
+
           {!isMobile &&
             links.map((l) => {
               const isActive = pathname === l.href;
@@ -528,25 +672,19 @@ export default function Navbar() {
                       ? 700
                       : 500,
 
-                     color: isActive
+                    color: isActive
                       ? "#28188b"
-                      : "#252525", 
-
-                /*     bgcolor: isActive
-                      ? BLUE
-                      : "transparent", */
+                      : "#252525",
 
                     transition:
                       "color 0.2s ease, background-color 0.2s ease",
 
                     whiteSpace: "nowrap",
 
-                    // ACTIVE BUTTON
                     borderRadius: isActive
                       ? 1.2
                       : 0,
 
-                    // HOVER ONLY BLUE BASE LINE
                     "&::after": {
                       content: '""',
                       position: "absolute",
@@ -572,11 +710,6 @@ export default function Navbar() {
                     },
 
                     "&:hover": {
-                      // NO BOX ON HOVER
-                  /*     bgcolor: isActive
-                        ? BLUE
-                        : "transparent", */
-
                       color: BLUE,
                     },
 
@@ -591,6 +724,7 @@ export default function Navbar() {
             })}
 
           {/* DESKTOP FORMS */}
+
           {!isMobile && showFormsMenu && (
             <>
               <Box
@@ -618,8 +752,6 @@ export default function Navbar() {
                   color: "#252525",
 
                   whiteSpace: "nowrap",
-
-                  borderRadius: 0,
 
                   "&:hover": {
                     bgcolor: "transparent",
@@ -660,9 +792,7 @@ export default function Navbar() {
                     sx={{ color: BLUE }}
                   />
                 ) : (
-                  <ExpandMore
-                    fontSize="small"
-                  />
+                  <ExpandMore fontSize="small" />
                 )}
               </Box>
 
@@ -715,7 +845,302 @@ export default function Navbar() {
             </>
           )}
 
-          {/* USER AVATAR */}
+          {/* =====================================================
+              NOTIFICATION BELL
+          ===================================================== */}
+
+          <IconButton
+            onClick={handleNotificationOpen}
+            sx={{
+              ml: { xs: 0.2, sm: 0.5 },
+              color: BLUE,
+
+              "&:hover": {
+                bgcolor:
+                  "rgba(23, 43, 143, 0.06)",
+              },
+            }}
+          >
+            <Badge
+              badgeContent={
+                unreadCount > 99
+                  ? "99+"
+                  : unreadCount
+              }
+              color="error"
+              overlap="circular"
+              sx={{
+                "& .MuiBadge-badge": {
+                  fontSize: "0.62rem",
+                  minWidth: 17,
+                  height: 17,
+                  px: 0.4,
+                  fontWeight: 700,
+                },
+              }}
+            >
+              <NotificationsNone />
+            </Badge>
+          </IconButton>
+
+          {/* =====================================================
+              NOTIFICATION POPOVER
+          ===================================================== */}
+
+          <Popover
+            open={Boolean(notificationAnchor)}
+            anchorEl={notificationAnchor}
+            onClose={handleNotificationClose}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            PaperProps={{
+              sx: {
+                width: {
+                  xs: "calc(100vw - 24px)",
+                  sm: 380,
+                },
+                maxWidth: 380,
+                mt: 1,
+                borderRadius: 2,
+                overflow: "hidden",
+              },
+            }}
+          >
+            {/* Header */}
+
+            <Box
+              sx={{
+                px: 2,
+                py: 1.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom:
+                  "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Box>
+                <Typography
+                  fontWeight={800}
+                  fontSize="0.95rem"
+                >
+                  Notifications
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                >
+                  {unreadCount > 0
+                    ? `${unreadCount} unread`
+                    : "You're all caught up"}
+                </Typography>
+              </Box>
+
+              {unreadCount > 0 && (
+                <Typography
+                  component="button"
+                  onClick={markAllNotificationsRead}
+                  sx={{
+                    border: 0,
+                    bgcolor: "transparent",
+                    color: BLUE,
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  Mark all read
+                </Typography>
+              )}
+            </Box>
+
+            {/* Notification list */}
+
+            <Box
+              sx={{
+                maxHeight: 430,
+                overflowY: "auto",
+              }}
+            >
+              {notificationLoading ? (
+                <Box
+                  sx={{
+                    py: 5,
+                    display: "flex",
+                    justifyContent: "center",
+                  }}
+                >
+                  <CircularProgress size={24} />
+                </Box>
+              ) : notifications.length === 0 ? (
+                <Box
+                  sx={{
+                    py: 5,
+                    px: 2,
+                    textAlign: "center",
+                  }}
+                >
+                  <NotificationsNone
+                    sx={{
+                      fontSize: 38,
+                      color: "text.disabled",
+                      mb: 1,
+                    }}
+                  />
+
+                  <Typography
+                    fontWeight={700}
+                    fontSize="0.9rem"
+                  >
+                    No notifications
+                  </Typography>
+
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                  >
+                    New task and message notifications
+                    will appear here.
+                  </Typography>
+                </Box>
+              ) : (
+                notifications.map((notification) => (
+                  <Box
+                    key={notification._id}
+                    onClick={() =>
+                      markNotificationRead(
+                        notification
+                      )
+                    }
+                    sx={{
+                      display: "flex",
+                      gap: 1.2,
+                      px: 1.7,
+                      py: 1.35,
+                      cursor: "pointer",
+
+                      bgcolor: notification.isRead
+                        ? "#FFFFFF"
+                        : "rgba(23, 43, 143, 0.055)",
+
+                      borderBottom:
+                        "1px solid rgba(0,0,0,0.05)",
+
+                      "&:hover": {
+                        bgcolor:
+                          "rgba(23, 43, 143, 0.08)",
+                      },
+                    }}
+                  >
+                    {/* Icon */}
+
+                    <Box
+                      sx={{
+                        width: 34,
+                        height: 34,
+                        minWidth: 34,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor:
+                          "rgba(23, 43, 143, 0.09)",
+                        color: BLUE,
+                      }}
+                    >
+                      {getNotificationIcon(
+                        notification.type
+                      )}
+                    </Box>
+
+                    {/* Content */}
+
+                    <Box
+                      sx={{
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.7,
+                        }}
+                      >
+                        {!notification.isRead && (
+                          <Box
+                            sx={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: "50%",
+                              bgcolor: "error.main",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+
+                        <Typography
+                          fontWeight={
+                            notification.isRead
+                              ? 600
+                              : 800
+                          }
+                          fontSize="0.84rem"
+                          noWrap
+                        >
+                          {notification.title}
+                        </Typography>
+                      </Box>
+
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          mt: 0.3,
+                          fontSize: "0.78rem",
+                          lineHeight: 1.4,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {notification.message}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        sx={{
+                          display: "block",
+                          mt: 0.45,
+                          fontSize: "0.68rem",
+                        }}
+                      >
+                        {formatNotificationTime(
+                          notification.createdAt
+                        )}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              )}
+            </Box>
+          </Popover>
+
+          {/* =====================================================
+              USER AVATAR
+          ===================================================== */}
+
           <IconButton
             onClick={(e) =>
               setAnchorEl(e.currentTarget)
@@ -756,6 +1181,7 @@ export default function Navbar() {
           </IconButton>
 
           {/* USER MENU */}
+
           <Menu
             anchorEl={anchorEl}
             open={!!anchorEl}
@@ -820,6 +1246,7 @@ export default function Navbar() {
       </AppBar>
 
       {/* MOBILE DRAWER */}
+
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

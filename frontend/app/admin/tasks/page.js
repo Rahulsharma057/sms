@@ -36,7 +36,7 @@ import {
   PendingActionsOutlined,
   ExpandMore,
   FilterListOutlined,
-  PersonOutline,
+  PersonOutline,  DeleteOutline,
 } from "@mui/icons-material";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
@@ -130,7 +130,8 @@ function AdminTasksInner() {
   const [teacherFilter, setTeacherFilter] = useState(ALL_TEACHERS);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
-
+const [deleting, setDeleting] = useState(false);
+const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const loadTasks = async () => {
     try {
       setLoadError("");
@@ -281,7 +282,33 @@ function AdminTasksInner() {
       setUpdatingStatus(false);
     }
   };
+const handleDeleteTask = async () => {
+  if (!selectedTask?._id) return;
 
+  try {
+    setDeleting(true);
+    setLoadError("");
+
+    await api.delete(`/tasks/${selectedTask._id}`);
+
+    // Remove task from local list
+    setTasks((prev) =>
+      prev.filter((task) => task._id !== selectedTask._id)
+    );
+
+    // Close selected task
+    setSelected(null);
+    setMobileChatOpen(false);
+    setDeleteDialogOpen(false);
+  } catch (err) {
+    setLoadError(
+      err?.response?.data?.message ||
+        "Could not delete task. Please try again."
+    );
+  } finally {
+    setDeleting(false);
+  }
+};
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#f7f8fc" }}>
       <Navbar />
@@ -523,13 +550,15 @@ function AdminTasksInner() {
                 minWidth: 0,
               }}
             >
-              <ChatPane
-                task={selectedTask}
-                updatingStatus={updatingStatus}
-                onStatusChange={handleStatusChange}
-                onBack={handleBack}
-                showBack={false}
-              />
+           <ChatPane
+  task={selectedTask}
+  updatingStatus={updatingStatus}
+  onStatusChange={handleStatusChange}
+  onBack={handleBack}
+  showBack={false}
+  onDelete={() => setDeleteDialogOpen(true)}
+  deleting={deleting}
+/>
             </Grid>
           </Grid>
         </Paper>
@@ -549,13 +578,15 @@ function AdminTasksInner() {
             bgcolor: "background.paper",
           }}
         >
-          <ChatPane
-            task={selectedTask}
-            updatingStatus={updatingStatus}
-            onStatusChange={handleStatusChange}
-            onBack={handleBack}
-            showBack
-          />
+        <ChatPane
+  task={selectedTask}
+  updatingStatus={updatingStatus}
+  onStatusChange={handleStatusChange}
+  onBack={handleBack}
+  showBack
+  onDelete={() => setDeleteDialogOpen(true)}
+  deleting={deleting}
+/>
         </Box>
       )}
 
@@ -708,12 +739,91 @@ function AdminTasksInner() {
           </Button>
         </DialogActions>
       </Dialog>
+      <Dialog
+  open={deleteDialogOpen}
+  onClose={() => {
+    if (!deleting) {
+      setDeleteDialogOpen(false);
+    }
+  }}
+  maxWidth="xs"
+  fullWidth
+>
+  <DialogTitle sx={{ fontWeight: 800 }}>
+    Delete Task?
+  </DialogTitle>
+
+  <DialogContent>
+    <Typography variant="body2" color="text.secondary">
+      Are you sure you want to delete{" "}
+      <Box
+        component="span"
+        sx={{ fontWeight: 700, color: "text.primary" }}
+      >
+        "{selectedTask?.title}"
+      </Box>
+      ?
+    </Typography>
+
+    <Typography
+      variant="body2"
+      color="error.main"
+      sx={{ mt: 1 }}
+    >
+      This action cannot be undone. The task and its conversation
+      will be permanently deleted.
+    </Typography>
+  </DialogContent>
+
+  <DialogActions sx={{ px: 2.5, pb: 2 }}>
+    <Button
+      onClick={() => setDeleteDialogOpen(false)}
+      disabled={deleting}
+      sx={{
+        textTransform: "none",
+        fontWeight: 600,
+      }}
+    >
+      Cancel
+    </Button>
+
+    <Button
+      variant="contained"
+      color="error"
+      onClick={handleDeleteTask}
+      disabled={deleting}
+      startIcon={
+        deleting ? (
+          <CircularProgress size={16} color="inherit" />
+        ) : (
+          <DeleteOutline />
+        )
+      }
+      sx={{
+        textTransform: "none",
+        fontWeight: 700,
+        borderRadius: 1.5,
+        boxShadow: "none",
+      }}
+    >
+      {deleting ? "Deleting..." : "Delete Task"}
+    </Button>
+  </DialogActions>
+</Dialog>
     </Box>
   );
 }
 
 // Shared chat panel — used both inline (desktop) and as a full-screen overlay (mobile).
-function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
+function ChatPane({
+  task,
+  updatingStatus,
+  onStatusChange,
+  onBack,
+  showBack,
+  onDelete,
+  deleting,
+}) {
   if (!task) {
     return (
       <Box
@@ -757,52 +867,168 @@ function ChatPane({ task, updatingStatus, onStatusChange, onBack, showBack }) {
 
   return (
     <>
-      <Box
+     <Box
+  sx={{
+    position: "relative",
+    px: { xs: 1, sm: 1.5 },
+    py: 1,
+    borderBottom: "1px solid",
+    borderColor: "divider",
+    flexShrink: 0,
+    width: "100%",
+    boxSizing: "border-box",
+  }}
+>
+  <Stack
+    direction="row"
+    alignItems="center"
+    spacing={1}
+    sx={{
+      width: "100%",
+      minWidth: 0,
+      pr: { xs: 5, sm: 12 },
+    }}
+  >
+    {showBack && (
+      <IconButton
+        size="small"
+        onClick={onBack}
         sx={{
-          px: 1.5,
-          py: 1,
-          borderBottom: "1px solid",
-          borderColor: "divider",
           flexShrink: 0,
         }}
       >
-        <Stack direction="row" alignItems="center" spacing={1}>
-          {showBack && (
-            <IconButton size="small" onClick={onBack} sx={{ flexShrink: 0 }}>
-              <ArrowBack fontSize="small" />
-            </IconButton>
-          )}
-          <Avatar
-            sx={{
-              width: { xs: 30, sm: 34 },
-              height: { xs: 30, sm: 34 },
-              fontSize: 13,
-              bgcolor: colorForName(task.assignedTo?.name),
-              flexShrink: 0,
-            }}
-          >
-            {initials(task.assignedTo?.name)}
-          </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography fontWeight={800} fontSize="0.9rem" noWrap>
-              {task.title}
-            </Typography>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <PersonOutline
-                sx={{ fontSize: 13, color: "text.disabled", flexShrink: 0 }}
-              />
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {task.assignedTo?.name || "Unassigned"}
-              </Typography>
-            </Stack>
-          </Box>
-          <StatusSelect
-            status={task.status}
-            disabled={updatingStatus}
-            onChange={(s) => onStatusChange(task._id, s)}
-          />
-        </Stack>
-      </Box>
+        <ArrowBack fontSize="small" />
+      </IconButton>
+    )}
+
+    <Avatar
+      sx={{
+        width: { xs: 30, sm: 34 },
+        height: { xs: 30, sm: 34 },
+        fontSize: 13,
+        bgcolor: colorForName(task.assignedTo?.name),
+        flexShrink: 0,
+      }}
+    >
+      {initials(task.assignedTo?.name)}
+    </Avatar>
+
+    <Box
+      sx={{
+        minWidth: 0,
+        flex: 1,
+        overflow: "hidden",
+      }}
+    >
+      <Typography
+        fontWeight={800}
+        fontSize="0.9rem"
+        noWrap
+        sx={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {task.title}
+      </Typography>
+
+      <Stack
+        direction="row"
+        spacing={0.5}
+        alignItems="center"
+        sx={{
+          minWidth: 0,
+        }}
+      >
+        <PersonOutline
+          sx={{
+            fontSize: 13,
+            color: "text.disabled",
+            flexShrink: 0,
+          }}
+        />
+
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {task.assignedTo?.name || "Unassigned"}
+        </Typography>
+      </Stack>
+    </Box>
+
+    {/* STATUS */}
+    <Box
+      sx={{
+        position: "absolute",
+        right: { xs: 42, sm: 50 },
+        top: "50%",
+        transform: "translateY(-50%)",
+        zIndex: 5,
+      }}
+    >
+      <StatusSelect
+        status={task.status}
+        disabled={updatingStatus}
+        onChange={(s) => onStatusChange(task._id, s)}
+      />
+    </Box>
+
+    {/* DELETE BUTTON */}
+    <IconButton
+      onClick={onDelete}
+      disabled={deleting}
+      aria-label="Delete task"
+      title="Delete task"
+      sx={{
+        position: "absolute",
+        right: { xs: 6, sm: 10 },
+        top: "50%",
+        transform: "translateY(-50%)",
+        zIndex: 10,
+
+        width: 34,
+        height: 34,
+
+        color: "error.main",
+        border: "1px solid",
+        borderColor: "error.main",
+        backgroundColor: "rgba(211, 47, 47, 0.08)",
+
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+
+        "&:hover": {
+          backgroundColor: "rgba(211, 47, 47, 0.16)",
+        },
+
+        "&.Mui-disabled": {
+          color: "error.main",
+          opacity: 0.5,
+        },
+      }}
+    >
+      {deleting ? (
+        <CircularProgress
+          size={17}
+          color="inherit"
+        />
+      ) : (
+        <DeleteOutline
+          sx={{
+            fontSize: 20,
+          }}
+        />
+      )}
+    </IconButton>
+  </Stack>
+</Box>
 
       {task.description && (
         <Box
