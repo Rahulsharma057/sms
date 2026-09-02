@@ -65,17 +65,17 @@ const getToday = () => new Date().toISOString().slice(0, 10);
 const CHECKLIST_SECTIONS = [
   {
     key: "morningChecks",
-    title: "1. Morning readiness check",
+    title: "1. Readiness check",
     timing: "0830–0900 hrs",
   },
   {
     key: "middayChecks",
-    title: "2. Mid-day infrastructure & order inspection",
+    title: "2. Infrastructure & order inspection",
     timing: "1100–1300 hrs",
   },
   {
     key: "afternoonChecks",
-    title: "3. Afternoon maintenance round",
+    title: "3. Maintenance round",
     timing: "1400–1600 hrs",
   },
 ];
@@ -2244,826 +2244,512 @@ function AllReportsInner() {
         {/* =====================================================
             VIEW REPORT DIALOG
         ===================================================== */}
-
-        <Dialog
-          open={!!selectedReport}
-          onClose={() =>
-            setSelectedReport(null)
-          }
-          maxWidth="sm"
-          fullWidth
-          fullScreen={false}
-          PaperProps={{
-            sx: {
-              borderRadius: {
-                xs: 1.5,
-                sm: 2,
-              },
-              maxHeight: "92vh",
-              overflow: "hidden",
-              m: {
-                xs: 1,
-                sm: 2,
-              },
-            },
+<Dialog
+  open={!!selectedReport}
+  onClose={() => setSelectedReport(null)}
+  maxWidth="sm"
+  fullWidth
+  fullScreen={false}
+  PaperProps={{
+    sx: {
+      borderRadius: { xs: 2, sm: 3 },
+      maxHeight: "92vh",
+      overflow: "hidden",
+      m: { xs: 1, sm: 2 },
+      border: "1.5px solid #CBD5E1",
+    },
+  }}
+>
+  {selectedReport && (
+    <>
+      {/* DIALOG HEADER */}
+      <Box
+        sx={{
+          px: { xs: 2, sm: 2.5 },
+          py: { xs: 1.5, sm: 2 },
+          bgcolor: "#1E3A8A",
+          color: "white",
+          position: "relative",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            left: 0,
+            bottom: 0,
+            width: 64,
+            height: 3,
+            bgcolor: "#B91C1C",
+          },
+        }}
+      >
+        <IconButton
+          onClick={() => setSelectedReport(null)}
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 32,
+            height: 32,
+            color: "white",
+            bgcolor: "rgba(255,255,255,.10)",
+            "&:hover": { bgcolor: "rgba(255,255,255,.20)" },
           }}
         >
-          {selectedReport && (
-            <>
-              {/* DIALOG HEADER */}
+          <Close fontSize="small" />
+        </IconButton>
 
-              <Box
-                sx={{
-                  px: {
-                    xs: 1.75,
-                    sm: 2.25,
-                  },
-                  py: {
-                    xs: 1.5,
-                    sm: 1.8,
-                  },
-                  bgcolor:
-                    "primary.main",
-                  color: "white",
-                  position: "relative",
+        <Stack direction="row" alignItems="center" spacing={1.2} sx={{ pr: 4 }}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: 1.5,
+              bgcolor: "rgba(255,255,255,.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Description sx={{ fontSize: 18 }} />
+          </Box>
 
-                  "&::after": {
-                    content: '""',
-                    position:
-                      "absolute",
-                    left: 0,
-                    bottom: 0,
-                    width: 64,
-                    height: 3,
-                    bgcolor:
-                      "error.main",
-                  },
-                }}
-              >
-                <IconButton
-                  onClick={() =>
-                    setSelectedReport(
-                      null
-                    )
-                  }
-                  sx={{
-                    position:
-                      "absolute",
-                    top: 7,
-                    right: 7,
-                    width: 32,
-                    height: 32,
-                    color: "white",
-                    bgcolor:
-                      "rgba(255,255,255,.08)",
+          <Box>
+            <Typography
+              sx={{
+                fontSize: { xs: "0.9rem", sm: "1.05rem" },
+                lineHeight: 1.2,
+                fontWeight: 800,
+              }}
+            >
+              Duty Officer's Inspection Checklist
+            </Typography>
 
-                    "&:hover": {
-                      bgcolor:
-                        "rgba(255,255,255,.16)",
-                    },
-                  }}
-                >
-                  <Close fontSize="small" />
-                </IconButton>
+            <Typography
+              sx={{
+                mt: 0.25,
+                fontSize: "0.7rem",
+                opacity: 0.85,
+                fontWeight: 500,
+              }}
+            >
+              Submitted by {selectedReport.teacher?.name || "-"} — view only
+            </Typography>
+          </Box>
+        </Stack>
+      </Box>
 
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={1.1}
-                  sx={{
-                    pr: 4,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 1,
-                      bgcolor:
-                        "rgba(255,255,255,.12)",
-                      display: "flex",
-                      alignItems:
-                        "center",
-                      justifyContent:
-                        "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Description
-                      sx={{
-                        fontSize: 18,
-                      }}
-                    />
-                  </Box>
+      <DialogContent
+        dividers
+        sx={{
+          p: { xs: 1.25, sm: 1.75 },
+          bgcolor: "#F8FAFC",
+          borderColor: "#E2E8F0",
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": { bgcolor: "#CBD5E1", borderRadius: 3 },
+        }}
+      >
+        <Stack spacing={1.25}>
+          {/* URGENT STATUS */}
+          {isUrgentReport(selectedReport) && (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.8,
+                px: 1.25,
+                py: 0.75,
+                borderRadius: 1.5,
+                bgcolor: "#FEE2E2",
+                border: "1.5px solid #FECACA",
+                color: "#7F1D1D",
+              }}
+            >
+              <Warning sx={{ fontSize: 17, color: "#B91C1C" }} />
+              <Typography fontSize="0.74rem" fontWeight={800}>
+                Has urgent matters
+              </Typography>
+            </Box>
+          )}
 
-                  <Box>
-                    <Typography
-                      sx={{
-                        fontSize: {
-                          xs: "0.95rem",
-                          sm: "1.05rem",
-                        },
-                        lineHeight: 1.2,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Duty Officer's
-                      Inspection
-                      Checklist
-                    </Typography>
+          {/* BASIC INFORMATION */}
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              p: { xs: 1.25, sm: 1.5 },
+              border: "1.5px solid #E2E8F0",
+              borderRadius: 2,
+              bgcolor: "white",
+            }}
+          >
+            <SectionHeading>01&nbsp;&nbsp;Basic Information</SectionHeading>
 
-                    <Typography
-                      sx={{
-                        mt: 0.25,
-                        fontSize:
-                          "0.7rem",
-                        opacity: 0.82,
-                      }}
-                    >
-                      Submitted by{" "}
-                      {selectedReport
-                        .teacher
-                        ?.name || "-"}{" "}
-                      — view only
-                    </Typography>
-                  </Box>
-                </Stack>
+            <Grid container spacing={{ xs: 1, sm: 1.25 }} sx={{ mt: 0.1 }}>
+              {[
+                ["DATE", selectedReport.date],
+                ["DUTY OFFICER", selectedReport.dutyOfficerName],
+                ["ORGANIZATION NAME", selectedReport.centreBatch],
+              ].map(([label, value]) => (
+                <Grid item xs={12} sm={6} key={label}>
+                  <InfoValue label={label} value={value || "-"} />
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+
+          {/* PROGRESS */}
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              p: { xs: 1.25, sm: 1.5 },
+              border: "1.5px solid #E2E8F0",
+              borderRadius: 2,
+              bgcolor: "white",
+            }}
+          >
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ mb: 0.75 }}
+            >
+              <Box>
+                <Typography fontSize="0.74rem" fontWeight={800}>
+                  Completion Progress
+                </Typography>
+                <Typography fontSize="0.67rem" sx={{ color: "#64748B" }}>
+                  {getCompletedChecks(selectedReport)} of{" "}
+                  {getTotalChecks(selectedReport)} checks completed
+                </Typography>
               </Box>
+              <Typography fontSize="1rem" fontWeight={800} sx={{ color: "#1E3A8A" }}>
+                {getTotalChecks(selectedReport) > 0
+                  ? Math.round(
+                      (getCompletedChecks(selectedReport) /
+                        getTotalChecks(selectedReport)) *
+                        100
+                    )
+                  : 0}
+                %
+              </Typography>
+            </Stack>
 
-              <DialogContent
-                dividers
+            <LinearProgress
+              variant="determinate"
+              value={
+                getTotalChecks(selectedReport) > 0
+                  ? (getCompletedChecks(selectedReport) /
+                      getTotalChecks(selectedReport)) *
+                    100
+                  : 0
+              }
+              sx={{
+                height: 6,
+                borderRadius: 5,
+                bgcolor: "#E2E8F0",
+                "& .MuiLinearProgress-bar": {
+                  bgcolor: "#1E3A8A",
+                  borderRadius: 5,
+                },
+              }}
+            />
+          </Paper>
+
+          {/* CHECKLIST */}
+          <SectionHeading>02&nbsp;&nbsp;Inspection Checklist</SectionHeading>
+
+          {CHECKLIST_SECTIONS.map((section, sectionIndex) => {
+            const items = selectedReport[section.key] || [];
+
+            return (
+              <Paper
+                key={section.key}
+                elevation={0}
                 sx={{
-                  p: {
-                    xs: 1.25,
-                    sm: 1.75,
-                  },
-                  bgcolor:
-                    "background.default",
-                  borderColor:
-                    "divider",
+                  ...sectionPaperSx,
+                  overflow: "hidden",
+                  border: "1.5px solid #E2E8F0",
+                  borderRadius: 2,
+                  bgcolor: "white",
                 }}
               >
-                <Stack spacing={1.25}>
-                  {/* URGENT STATUS */}
-
-                  {isUrgentReport(
-                    selectedReport
-                  ) && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems:
-                          "center",
-                        gap: 0.8,
-                        px: 1,
-                        py: 0.65,
-                        borderRadius: 1,
-                        bgcolor:
-                          "error.light",
-                        border:
-                          "1px solid #FECACA",
-                        color:
-                          "error.dark",
-                      }}
+                {/* SECTION HEADER */}
+                <Box
+                  sx={{
+                    px: { xs: 1.25, sm: 1.5 },
+                    py: 0.85,
+                    bgcolor: "#DBEAFE",
+                    borderBottom: "1.5px solid #BFDBFE",
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    gap={1}
+                  >
+                    <Typography
+                      fontSize="0.75rem"
+                      fontWeight={800}
+                      sx={{ color: "#1E3A8A" }}
                     >
-                      <Warning
+                      {String(sectionIndex + 1).padStart(2, "0")}
+                      &nbsp;{section.title.replace(/^\d+\.\s*/, "")}
+                    </Typography>
+                  </Stack>
+                </Box>
+
+                {/* ITEMS */}
+                {items.length === 0 ? (
+                  <Typography
+                    sx={{
+                      p: 1.2,
+                      fontSize: "0.7rem",
+                      color: "#64748B",
+                    }}
+                  >
+                    No checklist items available.
+                  </Typography>
+                ) : (
+                  <Box sx={{ px: { xs: 1, sm: 1.25 } }}>
+                    {items.map((item, i) => (
+                      <Box
+                        key={i}
                         sx={{
-                          fontSize: 17,
+                          py: 0.8,
+                          borderBottom:
+                            i === items.length - 1
+                              ? "none"
+                              : "1px solid #F1F5F9",
                         }}
-                      />
-
-                      <Typography
-                        fontSize="0.74rem"
-                        fontWeight={700}
                       >
-                        Has urgent
-                        matters
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* BASIC INFORMATION */}
-
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      ...sectionPaperSx,
-                      p: {
-                        xs: 1.25,
-                        sm: 1.5,
-                      },
-                    }}
-                  >
-                    <SectionHeading>
-                      01&nbsp;&nbsp; Basic
-                      Information
-                    </SectionHeading>
-
-                    <Grid
-                      container
-                      spacing={{
-                        xs: 1,
-                        sm: 1.25,
-                      }}
-                      sx={{ mt: 0.1 }}
-                    >
-                      {[
-                        [
-                          "DATE",
-                          selectedReport.date,
-                        ],
-                        [
-                          "DUTY OFFICER",
-                          selectedReport.dutyOfficerName,
-                        ],
-                        [
-                          "ORGANIZATION NAME",
-                          selectedReport.centreBatch,
-                        ],
-                      ].map(
-                        ([label, value]) => (
-                          <Grid
-                            item
-                            xs={12}
-                            sm={6}
-                            key={label}
-                          >
-                            <InfoValue
-                              label={label}
-                              value={
-                                value ||
-                                "-"
-                              }
-                            />
-                          </Grid>
-                        )
-                      )}
-                    </Grid>
-                  </Paper>
-
-                  {/* PROGRESS */}
-
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      ...sectionPaperSx,
-                      p: {
-                        xs: 1.25,
-                        sm: 1.5,
-                      },
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      justifyContent="space-between"
-                      sx={{
-                        mb: 0.75,
-                      }}
-                    >
-                      <Box>
-                        <Typography
-                          fontSize="0.74rem"
-                          fontWeight={700}
+                        <Stack
+                          direction="row"
+                          alignItems="flex-start"
+                          spacing={0.7}
                         >
-                          Completion Progress
-                        </Typography>
-
-                        <Typography
-                          fontSize="0.67rem"
-                          color="text.secondary"
-                        >
-                          {getCompletedChecks(
-                            selectedReport
-                          )}{" "}
-                          of{" "}
-                          {getTotalChecks(
-                            selectedReport
-                          )}{" "}
-                          checks completed
-                        </Typography>
-                      </Box>
-
-                      <Typography
-                        fontSize="1rem"
-                        fontWeight={750}
-                        color="primary.main"
-                      >
-                        {getTotalChecks(
-                          selectedReport
-                        ) > 0
-                          ? Math.round(
-                              (getCompletedChecks(
-                                selectedReport
-                              ) /
-                                getTotalChecks(
-                                  selectedReport
-                                )) *
-                                100
-                            )
-                          : 0}
-                        %
-                      </Typography>
-                    </Stack>
-
-                    <LinearProgress
-                      variant="determinate"
-                      value={
-                        getTotalChecks(
-                          selectedReport
-                        ) > 0
-                          ? (getCompletedChecks(
-                              selectedReport
-                            ) /
-                              getTotalChecks(
-                                selectedReport
-                              )) *
-                            100
-                          : 0
-                      }
-                      sx={{
-                        height: 6,
-                        borderRadius: 5,
-                        bgcolor: "#E2E8F0",
-
-                        "& .MuiLinearProgress-bar":
-                          {
-                            bgcolor:
-                              "primary.main",
-                            borderRadius: 5,
-                          },
-                      }}
-                    />
-                  </Paper>
-
-                  {/* CHECKLIST */}
-
-                  <SectionHeading>
-                    02&nbsp;&nbsp; Inspection
-                    Checklist
-                  </SectionHeading>
-
-                  {CHECKLIST_SECTIONS.map(
-                    (section, sectionIndex) => {
-                      const items =
-                        selectedReport[
-                          section.key
-                        ] || [];
-
-                      return (
-                        <Paper
-                          key={
-                            section.key
-                          }
-                          elevation={0}
-                          sx={{
-                            ...sectionPaperSx,
-                            overflow:
-                              "hidden",
-                          }}
-                        >
-                          {/* SECTION HEADER */}
-
-                          <Box
+                          <Checkbox
+                            checked={!!item.checked}
+                            disabled
+                            size="small"
                             sx={{
-                              px: {
-                                xs: 1.25,
-                                sm: 1.5,
+                              p: 0,
+                              mt: 0.05,
+                              "&.Mui-disabled": {
+                                color: item.checked ? "#1E3A8A" : "#CBD5E1",
                               },
-                              py: 0.8,
-                              bgcolor:
-                                "primary.light",
-                              borderBottom:
-                                "1px solid",
-                              borderColor:
-                                "#DBEAFE",
+                            }}
+                          />
+
+                          <Typography
+                            fontSize="0.76rem"
+                            sx={{
+                              pt: 0.15,
+                              lineHeight: 1.45,
+                              color: "#0F172A",
                             }}
                           >
-                            <Stack
-                              direction="row"
-                              justifyContent="space-between"
-                              alignItems="center"
-                              gap={1}
-                            >
-                              <Typography
-                                fontSize="0.75rem"
-                                fontWeight={750}
-                                color="primary.main"
-                              >
-                                {String(
-                                  sectionIndex +
-                                    1
-                                ).padStart(
-                                  2,
-                                  "0"
-                                )}{" "}
-                                &nbsp;
-                                {
-                                  section.title
-                                    .replace(
-                                      /^\d+\.\s*/,
-                                      ""
-                                    )
-                                }
-                              </Typography>
+                            {item.label}
+                          </Typography>
+                        </Stack>
 
-                              <Typography
-                                fontSize="0.63rem"
-                                color="text.secondary"
-                                whiteSpace="nowrap"
-                              >
-                                {
-                                  section.timing
-                                }
-                              </Typography>
-                            </Stack>
-                          </Box>
-
-                          {/* ITEMS */}
-
-                          {items.length ===
-                          0 ? (
-                            <Typography
-                              sx={{
-                                p: 1.2,
-                                fontSize:
-                                  "0.7rem",
-                                color:
-                                  "text.secondary",
-                              }}
-                            >
-                              No checklist
-                              items
-                              available.
-                            </Typography>
-                          ) : (
-                            <Box
-                              sx={{
-                                px: {
-                                  xs: 1,
-                                  sm: 1.25,
-                                },
-                              }}
-                            >
-                              {items.map(
-                                (
-                                  item,
-                                  i
-                                ) => (
-                                  <Box
-                                    key={i}
-                                    sx={{
-                                      py: 0.8,
-                                      borderBottom:
-                                        i ===
-                                        items.length -
-                                          1
-                                          ? "none"
-                                          : "1px solid #F1F5F9",
-                                    }}
-                                  >
-                                    <Stack
-                                      direction="row"
-                                      alignItems="flex-start"
-                                      spacing={
-                                        0.7
-                                      }
-                                    >
-                                      <Checkbox
-                                        checked={
-                                          !!item.checked
-                                        }
-                                        disabled
-                                        size="small"
-                                        sx={{
-                                          p: 0,
-                                          mt: 0.05,
-
-                                          "&.Mui-disabled":
-                                            {
-                                              color:
-                                                item.checked
-                                                  ? "primary.main"
-                                                  : "#CBD5E1",
-                                            },
-                                        }}
-                                      />
-
-                                      <Typography
-                                        fontSize="0.76rem"
-                                        sx={{
-                                          pt: 0.15,
-                                          lineHeight: 1.45,
-                                          color:
-                                            "text.primary",
-                                        }}
-                                      >
-                                        {
-                                          item.label
-                                        }
-                                      </Typography>
-                                    </Stack>
-
-                                    {item.remark && (
-                                      <Typography
-                                        sx={{
-                                          ml: 3.25,
-                                          mt: 0.25,
-                                          fontSize:
-                                            "0.65rem",
-                                          lineHeight: 1.4,
-                                          color:
-                                            "text.secondary",
-                                          fontStyle:
-                                            "italic",
-                                        }}
-                                      >
-                                        Remark:{" "}
-                                        {
-                                          item.remark
-                                        }
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                )
-                              )}
-                            </Box>
-                          )}
-                        </Paper>
-                      );
-                    }
-                  )}
-
-                  {/* OBSERVATIONS */}
-
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      ...sectionPaperSx,
-                      p: {
-                        xs: 1.25,
-                        sm: 1.5,
-                      },
-                    }}
-                  >
-                    <SectionHeading>
-                      03&nbsp;&nbsp; Summary of
-                      Key Observations
-                    </SectionHeading>
-
-                    <Stack spacing={1}>
-                      <ObservationRow
-                        label="Major positive observations"
-                        value={
-                          selectedReport.positiveObservations
-                        }
-                      />
-
-                      <ObservationRow
-                        label="Cleanliness / hygiene lapses noted"
-                        value={
-                          selectedReport.hygieneLapses
-                        }
-                      />
-
-                      <ObservationRow
-                        label="Maintenance items needing follow-up action"
-                        value={
-                          selectedReport.maintenanceFollowUp
-                        }
-                      />
-                    </Stack>
-                  </Paper>
-
-                  {/* URGENT MATTERS */}
-
-                  <Box
-                    sx={{
-                      border:
-                        "1px solid",
-                      borderColor:
-                        isUrgentReport(
-                          selectedReport
-                        )
-                          ? "#FECACA"
-                          : "divider",
-                      bgcolor:
-                        isUrgentReport(
-                          selectedReport
-                        )
-                          ? "error.light"
-                          : "background.paper",
-                      borderRadius: 1.5,
-                      p: {
-                        xs: 1.25,
-                        sm: 1.5,
-                      },
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={0.8}
-                      alignItems="flex-start"
-                    >
-                      <Warning
-                        sx={{
-                          fontSize: 17,
-                          color:
-                            isUrgentReport(
-                              selectedReport
-                            )
-                              ? "error.main"
-                              : "text.secondary",
-                          mt: 0.1,
-                        }}
-                      />
-
-                      <Box>
-                        <Typography
-                          fontSize="0.75rem"
-                          fontWeight={750}
-                          color={
-                            isUrgentReport(
-                              selectedReport
-                            )
-                              ? "error.dark"
-                              : "text.primary"
-                          }
-                        >
-                          04&nbsp;&nbsp;
-                          Urgent Matters
-                        </Typography>
-
-                        <Typography
-                          sx={{
-                            mt: 0.35,
-                            fontSize:
-                              "0.72rem",
-                            lineHeight: 1.5,
-                            color:
-                              isUrgentReport(
-                                selectedReport
-                              )
-                                ? "#7F1D1D"
-                                : "text.secondary",
-                          }}
-                        >
-                          {selectedReport.urgentMatters?.trim() ||
-                            "None reported"}
-                        </Typography>
+                        {item.remark && (
+                          <Typography
+                            sx={{
+                              ml: 3.25,
+                              mt: 0.25,
+                              fontSize: "0.65rem",
+                              lineHeight: 1.4,
+                              color: "#64748B",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            Remark: {item.remark}
+                          </Typography>
+                        )}
                       </Box>
-                    </Stack>
+                    ))}
                   </Box>
+                )}
+              </Paper>
+            );
+          })}
 
-                  {/* VERIFICATION */}
+          {/* OBSERVATIONS */}
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              p: { xs: 1.25, sm: 1.5 },
+              border: "1.5px solid #E2E8F0",
+              borderRadius: 2,
+              bgcolor: "white",
+            }}
+          >
+            <SectionHeading>03&nbsp;&nbsp;Summary of Key Observations</SectionHeading>
 
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      ...sectionPaperSx,
-                      p: {
-                        xs: 1.25,
-                        sm: 1.5,
-                      },
-                    }}
-                  >
-                    <SectionHeading>
-                      05&nbsp;&nbsp; Verification
-                    </SectionHeading>
+            <Stack spacing={1}>
+              <ObservationRow
+                label="Major positive observations"
+                value={selectedReport.positiveObservations}
+              />
+              <ObservationRow
+                label="Cleanliness / hygiene lapses noted"
+                value={selectedReport.hygieneLapses}
+              />
+              <ObservationRow
+                label="Maintenance items needing follow-up action"
+                value={selectedReport.maintenanceFollowUp}
+              />
+            </Stack>
+          </Paper>
 
-                    <Grid
-                      container
-                      spacing={1.25}
-                    >
-                      <Grid
-                        item
-                        xs={12}
-                        sm={6}
-                      >
-                        <InfoValue
-                          label="SIGNATURE OF DUTY OFFICER"
-                          value={
-                            selectedReport.signature ||
-                            "-"
-                          }
-                        />
-                      </Grid>
-
-                      <Grid
-                        item
-                        xs={12}
-                        sm={6}
-                      >
-                        <InfoValue
-                          label="COUNTERSIGNED BY"
-                          value={
-                            selectedReport.countersignedBy ||
-                            "-"
-                          }
-                        />
-                      </Grid>
-                    </Grid>
-                  </Paper>
-
-                  {copyToast && (
-                    <Alert
-                      severity="info"
-                      onClose={() =>
-                        setCopyToast(
-                          ""
-                        )
-                      }
-                      sx={{
-                        py: 0,
-                        fontSize:
-                          "0.75rem",
-                      }}
-                    >
-                      {copyToast}
-                    </Alert>
-                  )}
-                </Stack>
-              </DialogContent>
-
-              {/* FOOTER */}
-
-              <DialogActions
+          {/* URGENT MATTERS */}
+          <Box
+            sx={{
+              border: "1.5px solid",
+              borderColor: isUrgentReport(selectedReport) ? "#FECACA" : "#E2E8F0",
+              bgcolor: isUrgentReport(selectedReport) ? "#FEE2E2" : "white",
+              borderRadius: 2,
+              p: { xs: 1.25, sm: 1.5 },
+            }}
+          >
+            <Stack direction="row" spacing={0.8} alignItems="flex-start">
+              <Warning
                 sx={{
-                  px: {
-                    xs: 1.25,
-                    sm: 1.75,
-                  },
-                  py: 1,
-                  bgcolor:
-                    "background.paper",
-                  borderTop:
-                    "1px solid",
-                  borderColor:
-                    "divider",
-                  gap: 0.75,
+                  fontSize: 17,
+                  color: isUrgentReport(selectedReport) ? "#B91C1C" : "#94A3B8",
+                  mt: 0.1,
+                  flexShrink: 0,
                 }}
-              >
-                <Button
-                  startIcon={
-                    <Share fontSize="small" />
-                  }
-                  onClick={() =>
-                    shareReport(
-                      selectedReport,
-                      setCopyToast
-                    )
-                  }
-                  variant="outlined"
+              />
+
+              <Box>
+                <Typography
+                  fontSize="0.75rem"
+                  fontWeight={800}
                   sx={{
-                    height: 36,
-                    px: 1.5,
-                    fontSize:
-                      "0.76rem",
-                    textTransform:
-                      "none",
-                    borderColor:
-                      "divider",
-                    color:
-                      "text.primary",
+                    color: isUrgentReport(selectedReport) ? "#7F1D1D" : "#0F172A",
                   }}
                 >
-                  Share
-                </Button>
+                  04&nbsp;&nbsp;Urgent Matters
+                </Typography>
 
-                <Button
-                  variant="contained"
-                  startIcon={
-                    <PictureAsPdf fontSize="small" />
-                  }
-                  onClick={() =>
-                    downloadReportPdf(
-                      selectedReport
-                    )
-                  }
+                <Typography
                   sx={{
-                    height: 36,
-                    px: 1.6,
-                    fontSize:
-                      "0.76rem",
-                    textTransform:
-                      "none",
-                    bgcolor:
-                      "primary.main",
-                    boxShadow: "none",
-
-                    "&:hover": {
-                      bgcolor:
-                        "primary.dark",
-                      boxShadow: "none",
-                    },
+                    mt: 0.35,
+                    fontSize: "0.72rem",
+                    lineHeight: 1.5,
+                    color: isUrgentReport(selectedReport) ? "#7F1D1D" : "#64748B",
                   }}
                 >
-                  Download PDF
-                </Button>
-              </DialogActions>
-            </>
+                  {selectedReport.urgentMatters?.trim() || "None reported"}
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+
+          {/* VERIFICATION */}
+          <Paper
+            elevation={0}
+            sx={{
+              ...sectionPaperSx,
+              p: { xs: 1.25, sm: 1.5 },
+              border: "1.5px solid #E2E8F0",
+              borderRadius: 2,
+              bgcolor: "white",
+            }}
+          >
+            <SectionHeading>05&nbsp;&nbsp;Verification</SectionHeading>
+
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} sm={6}>
+                <InfoValue
+                  label="SIGNATURE OF DUTY OFFICER"
+                  value={selectedReport.signature || "-"}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <InfoValue
+                  label="COUNTERSIGNED BY"
+                  value={selectedReport.countersignedBy || "-"}
+                />
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {copyToast && (
+            <Alert
+              severity="info"
+              onClose={() => setCopyToast("")}
+              sx={{
+                py: 0,
+                fontSize: "0.75rem",
+                borderRadius: 1.5,
+                border: "1.5px solid #BFDBFE",
+                bgcolor: "#DBEAFE",
+                color: "#1E3A8A",
+                "& .MuiAlert-icon": { color: "#1E3A8A" },
+              }}
+            >
+              {copyToast}
+            </Alert>
           )}
-        </Dialog>
+        </Stack>
+      </DialogContent>
+
+      {/* FOOTER */}
+      <DialogActions
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          py: 1.25,
+          bgcolor: "white",
+          borderTop: "1.5px solid #E2E8F0",
+          gap: 0.75,
+        }}
+      >
+        <Button
+          startIcon={<Share fontSize="small" />}
+          onClick={() => shareReport(selectedReport, setCopyToast)}
+          variant="outlined"
+          sx={{
+            height: 36,
+            px: 1.5,
+            fontSize: "0.76rem",
+            textTransform: "none",
+            fontWeight: 700,
+            borderColor: "#E2E8F0",
+            color: "#0F172A",
+            borderRadius: 1.5,
+            "&:hover": { bgcolor: "#F8FAFC", borderColor: "#CBD5E1" },
+          }}
+        >
+          Share
+        </Button>
+
+        <Button
+          variant="contained"
+          startIcon={<PictureAsPdf fontSize="small" />}
+          onClick={() => downloadReportPdf(selectedReport)}
+          sx={{
+            height: 36,
+            px: 1.6,
+            fontSize: "0.76rem",
+            textTransform: "none",
+            fontWeight: 700,
+            bgcolor: "#1E3A8A",
+            borderRadius: 1.5,
+            boxShadow: "none",
+            "&:hover": { bgcolor: "#172554", boxShadow: "none" },
+          }}
+        >
+          Download PDF
+        </Button>
+      </DialogActions>
+    </>
+  )}
+</Dialog>
 
         {/* =====================================================
             DELETE CONFIRMATION

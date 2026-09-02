@@ -1,11 +1,12 @@
-
 const express = require("express");
 
 const {
   getMyNotifications,
   getUnreadCount,
   markAsRead,
-  markAllAsRead, subscribeToPush,
+  markAllAsRead,
+  subscribeToPush,
+ deleteNotification,  
 } = require("../controllers/notificationController");
 
 const { protect } = require("../middleware/auth");
@@ -26,5 +27,11 @@ router.patch("/read-all", markAllAsRead);
 
 // Mark single notification as read
 router.patch("/:id/read", markAsRead);
+
+// Delete single notification
+router.delete("/:id",  deleteNotification); // ✅ ADD
+
+// Push subscription
 router.post("/push/subscribe", subscribeToPush);
+
 module.exports = router;

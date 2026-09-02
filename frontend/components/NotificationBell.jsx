@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import {
   Badge,
   Box,
@@ -20,6 +21,7 @@ import {
   AssignmentOutlined,
   ChatBubbleOutline,
   CheckCircleOutline,
+  CampaignOutlined,
   DoneAll,
 } from "@mui/icons-material";
 
@@ -34,6 +36,10 @@ import { useRouter } from "next/navigation";
 
 const POLL_INTERVAL = 8000;
 
+// ======================================================
+// NOTIFICATION ICON
+// ======================================================
+
 const getNotificationIcon = (type) => {
   switch (type) {
     case "NEW_TASK":
@@ -45,10 +51,40 @@ const getNotificationIcon = (type) => {
     case "TASK_STATUS":
       return <CheckCircleOutline fontSize="small" />;
 
+    case "NEW_NOTICE":
+      return <CampaignOutlined fontSize="small" />;
+
     default:
       return <NotificationsNoneOutlined fontSize="small" />;
   }
 };
+
+// ======================================================
+// NOTIFICATION LABEL
+// ======================================================
+
+const getNotificationLabel = (type) => {
+  switch (type) {
+    case "NEW_TASK":
+      return "New Task";
+
+    case "NEW_MESSAGE":
+      return "New Message";
+
+    case "TASK_STATUS":
+      return "Task Status Updated";
+
+    case "NEW_NOTICE":
+      return "New Notice";
+
+    default:
+      return "Notification";
+  }
+};
+
+// ======================================================
+// FORMAT TIME
+// ======================================================
 
 const formatTime = (date) => {
   if (!date) return "";
@@ -76,36 +112,15 @@ export default function NotificationBell() {
 
   const open = Boolean(anchorEl);
 
-  // ---------------------------------------------
+  // ======================================================
   // LOAD NOTIFICATIONS
-  // ---------------------------------------------
+  // ======================================================
 
   const loadNotifications = async () => {
     try {
       setLoading(true);
 
       const data = await getNotifications();
-
-      /*
-        Supports both:
-
-        [
-          {...},
-          {...}
-        ]
-
-        and:
-
-        {
-          notifications: [...]
-        }
-
-        and:
-
-        {
-          data: [...]
-        }
-      */
 
       const list = Array.isArray(data)
         ? data
@@ -115,15 +130,18 @@ export default function NotificationBell() {
 
       setNotifications(list);
     } catch (error) {
-      console.error("Failed to load notifications:", error);
+      console.error(
+        "Failed to load notifications:",
+        error
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // ---------------------------------------------
+  // ======================================================
   // LOAD UNREAD COUNT
-  // ---------------------------------------------
+  // ======================================================
 
   const loadUnreadCount = async () => {
     try {
@@ -139,13 +157,16 @@ export default function NotificationBell() {
 
       setUnreadCount(Number(count) || 0);
     } catch (error) {
-      console.error("Failed to load unread count:", error);
+      console.error(
+        "Failed to load unread count:",
+        error
+      );
     }
   };
 
-  // ---------------------------------------------
+  // ======================================================
   // INITIAL LOAD + POLLING
-  // ---------------------------------------------
+  // ======================================================
 
   useEffect(() => {
     loadUnreadCount();
@@ -161,9 +182,9 @@ export default function NotificationBell() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // ---------------------------------------------
+  // ======================================================
   // OPEN BELL
-  // ---------------------------------------------
+  // ======================================================
 
   const handleOpen = async (event) => {
     setAnchorEl(event.currentTarget);
@@ -176,53 +197,120 @@ export default function NotificationBell() {
     setAnchorEl(null);
   };
 
-  // ---------------------------------------------
+  // ======================================================
   // CLICK NOTIFICATION
-  // ---------------------------------------------
+  // ======================================================
 
   const handleNotificationClick = async (notification) => {
     try {
+      // ----------------------------------------------
+      // MARK AS READ
+      // ----------------------------------------------
+
       if (!notification.isRead) {
         await markNotificationRead(notification._id);
 
         setNotifications((prev) =>
           prev.map((item) =>
             item._id === notification._id
-              ? { ...item, isRead: true }
-              : item,
-          ),
+              ? {
+                  ...item,
+                  isRead: true,
+                }
+              : item
+          )
         );
 
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+        setUnreadCount((prev) =>
+          Math.max(0, prev - 1)
+        );
       }
 
       handleClose();
 
-      // Task notification -> open task page
-      if (notification.task) {
+      // ==================================================
+      // NEW NOTICE
+      // ==================================================
+
+      if (notification.type === "NEW_NOTICE") {
+        const noticeId =
+          typeof notification.notice === "object"
+            ? notification.notice?._id
+            : notification.notice;
+
+        if (noticeId) {
+          router.push(`/notices/${noticeId}`);
+          return;
+        }
+
+        // Fallback
+        router.push("/notices");
+        return;
+      }
+
+      // ==================================================
+      // TASK NOTIFICATION
+      // ==================================================
+
+      if (
+        notification.type === "NEW_TASK" ||
+        notification.type === "TASK_STATUS"
+      ) {
         const taskId =
           typeof notification.task === "object"
-            ? notification.task._id
+            ? notification.task?._id
             : notification.task;
 
         if (taskId) {
-          router.push(`/teacher/tasks?task=${taskId}`);
+          router.push(
+            `/teacher/tasks?task=${taskId}`
+          );
+          return;
         }
       }
+
+      // ==================================================
+      // MESSAGE NOTIFICATION
+      // ==================================================
+
+      if (notification.type === "NEW_MESSAGE") {
+        const taskId =
+          typeof notification.task === "object"
+            ? notification.task?._id
+            : notification.task;
+
+        if (taskId) {
+          router.push(
+            `/teacher/tasks?task=${taskId}`
+          );
+          return;
+        }
+      }
+
+      // ==================================================
+      // FALLBACK
+      // ==================================================
+
+      router.push("/notifications");
     } catch (error) {
       console.error(
-        "Failed to mark notification as read:",
-        error,
+        "Failed to handle notification:",
+        error
       );
     }
   };
 
-  // ---------------------------------------------
+  // ======================================================
   // MARK ALL READ
-  // ---------------------------------------------
+  // ======================================================
 
   const handleMarkAllRead = async () => {
-    if (markingAll || unreadCount === 0) return;
+    if (
+      markingAll ||
+      unreadCount === 0
+    ) {
+      return;
+    }
 
     try {
       setMarkingAll(true);
@@ -233,14 +321,14 @@ export default function NotificationBell() {
         prev.map((notification) => ({
           ...notification,
           isRead: true,
-        })),
+        }))
       );
 
       setUnreadCount(0);
     } catch (error) {
       console.error(
         "Failed to mark all notifications as read:",
-        error,
+        error
       );
     } finally {
       setMarkingAll(false);
@@ -249,9 +337,9 @@ export default function NotificationBell() {
 
   return (
     <>
-      {/* =========================================
+      {/* =================================================
           NOTIFICATION BUTTON
-      ========================================= */}
+      ================================================= */}
 
       <IconButton
         onClick={handleOpen}
@@ -262,7 +350,11 @@ export default function NotificationBell() {
         }}
       >
         <Badge
-          badgeContent={unreadCount > 99 ? "99+" : unreadCount}
+          badgeContent={
+            unreadCount > 99
+              ? "99+"
+              : unreadCount
+          }
           color="error"
           overlap="circular"
         >
@@ -270,9 +362,9 @@ export default function NotificationBell() {
         </Badge>
       </IconButton>
 
-      {/* =========================================
+      {/* =================================================
           NOTIFICATION POPUP
-      ========================================= */}
+      ================================================= */}
 
       <Popover
         open={open}
@@ -302,7 +394,9 @@ export default function NotificationBell() {
           },
         }}
       >
-        {/* HEADER */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <Box
           sx={{
@@ -349,9 +443,12 @@ export default function NotificationBell() {
 
         <Divider />
 
-        {/* LOADING */}
+        {/* =================================================
+            LOADING
+        ================================================= */}
 
-        {loading && notifications.length === 0 ? (
+        {loading &&
+        notifications.length === 0 ? (
           <Box
             sx={{
               py: 5,
@@ -362,7 +459,9 @@ export default function NotificationBell() {
             <CircularProgress size={25} />
           </Box>
         ) : notifications.length === 0 ? (
-          /* EMPTY */
+          /* =================================================
+              EMPTY
+          ================================================= */
 
           <Box
             sx={{
@@ -403,12 +502,14 @@ export default function NotificationBell() {
               variant="caption"
               color="text.secondary"
             >
-              New task and message notifications
-              will appear here.
+              New tasks, messages, status updates
+              and notices will appear here.
             </Typography>
           </Box>
         ) : (
-          /* LIST */
+          /* =================================================
+              LIST
+          ================================================= */
 
           <List
             disablePadding
@@ -417,118 +518,132 @@ export default function NotificationBell() {
               overflowY: "auto",
             }}
           >
-            {notifications.map((notification) => (
-              <ListItemButton
-                key={notification._id}
-                onClick={() =>
-                  handleNotificationClick(notification)
-                }
-                sx={{
-                  px: 2,
-                  py: 1.5,
-                  alignItems: "flex-start",
-
-                  bgcolor: notification.isRead
-                    ? "transparent"
-                    : "action.hover",
-
-                  "&:hover": {
-                    bgcolor: "action.selected",
-                  },
-                }}
-              >
-                {/* ICON */}
-
-                <Box
+            {notifications.map(
+              (notification) => (
+                <ListItemButton
+                  key={notification._id}
+                  onClick={() =>
+                    handleNotificationClick(
+                      notification
+                    )
+                  }
                   sx={{
-                    width: 38,
-                    height: 38,
-                    minWidth: 38,
-                    borderRadius: 2,
-                    bgcolor: notification.isRead
-                      ? "action.hover"
-                      : "primary.50",
-                    color: "primary.main",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    mr: 1.5,
+                    px: 2,
+                    py: 1.5,
+                    alignItems: "flex-start",
+
+                    bgcolor:
+                      notification.isRead
+                        ? "transparent"
+                        : "action.hover",
+
+                    "&:hover": {
+                      bgcolor:
+                        "action.selected",
+                    },
                   }}
                 >
-                  {getNotificationIcon(
-                    notification.type,
-                  )}
-                </Box>
+                  {/* ICON */}
 
-                {/* CONTENT */}
+                  <Box
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      minWidth: 38,
+                      borderRadius: 2,
+                      bgcolor:
+                        notification.isRead
+                          ? "action.hover"
+                          : "primary.50",
+                      color:
+                        "primary.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        "center",
+                      mr: 1.5,
+                    }}
+                  >
+                    {getNotificationIcon(
+                      notification.type
+                    )}
+                  </Box>
 
-                <ListItemText
-                  sx={{ m: 0 }}
-                  primary={
-                    <Stack
-                      direction="row"
-                      spacing={0.75}
-                      alignItems="center"
-                    >
-                      <Typography
-                        variant="body2"
-                        fontWeight={
-                          notification.isRead
-                            ? 600
-                            : 800
-                        }
-                        sx={{
-                          flex: 1,
-                        }}
+                  {/* CONTENT */}
+
+                  <ListItemText
+                    sx={{ m: 0 }}
+                    primary={
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        alignItems="center"
                       >
-                        {notification.title}
-                      </Typography>
-
-                      {!notification.isRead && (
-                        <Box
+                        <Typography
+                          variant="body2"
+                          fontWeight={
+                            notification.isRead
+                              ? 600
+                              : 800
+                          }
                           sx={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            bgcolor: "primary.main",
-                            flexShrink: 0,
+                            flex: 1,
                           }}
-                        />
-                      )}
-                    </Stack>
-                  }
-                  secondary={
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: "block",
-                          mt: 0.4,
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        {notification.message}
-                      </Typography>
+                        >
+                          {notification.title ||
+                            getNotificationLabel(
+                              notification.type
+                            )}
+                        </Typography>
 
-                      <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        sx={{
-                          display: "block",
-                          mt: 0.6,
-                          fontSize: 10.5,
-                        }}
-                      >
-                        {formatTime(
-                          notification.createdAt,
+                        {!notification.isRead && (
+                          <Box
+                            sx={{
+                              width: 7,
+                              height: 7,
+                              borderRadius:
+                                "50%",
+                              bgcolor:
+                                "primary.main",
+                              flexShrink: 0,
+                            }}
+                          />
                         )}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </ListItemButton>
-            ))}
+                      </Stack>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "block",
+                            mt: 0.4,
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          {notification.message}
+                        </Typography>
+
+                        <Typography
+                          variant="caption"
+                          color="text.disabled"
+                          sx={{
+                            display: "block",
+                            mt: 0.6,
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {formatTime(
+                            notification.createdAt
+                          )}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItemButton>
+              )
+            )}
           </List>
         )}
       </Popover>

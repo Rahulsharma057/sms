@@ -1633,474 +1633,906 @@ bgcolor:"rgba(37, 39, 150, 0.97)",
           REPORT DETAIL DIALOG
       ===================================================== */}
 
-      <Dialog
-        open={!!selectedReport}
-        onClose={() => setSelectedReport(null)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: COLORS.surface,
-            borderRadius: 2.5,
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: "0 22px 60px rgba(15,23,42,.18)",
-            overflow: "hidden",
-          },
-        }}
-      >
-        {/* DIALOG HEADER */}
 
-        <DialogTitle
-          sx={{
-            p: 0,
-            bgcolor: COLORS.primary,
-            color: "#fff",
-          }}
-        >
+<Dialog
+  open={!!selectedReport}
+  onClose={() => setSelectedReport(null)}
+  maxWidth="md"
+  fullWidth
+  PaperProps={{
+    sx: {
+      bgcolor: COLORS.surface,
+      borderRadius: 2.5,
+      border: `1px solid ${COLORS.border}`,
+      boxShadow: "0 22px 60px rgba(15,23,42,.18)",
+      overflow: "hidden",
+      maxHeight: "92vh",
+    },
+  }}
+>
+  {/* =================================================
+      DIALOG HEADER
+  ================================================= */}
+
+  <DialogTitle
+    sx={{
+      p: 0,
+      bgcolor: COLORS.primary,
+      color: "#fff",
+    }}
+  >
+    <Box
+      sx={{
+        px: { xs: 1.75, sm: 2.5 },
+        py: 1.65,
+      }}
+    >
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        spacing={1}
+      >
+        <Stack direction="row" spacing={1.2} alignItems="center">
           <Box
             sx={{
-              px: { xs: 2, sm: 2.5 },
-              py: 1.65,
+              width: 38,
+              height: 38,
+              borderRadius: 1.75,
+              bgcolor: "rgba(255,255,255,.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid rgba(255,255,255,.18)",
             }}
           >
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              spacing={1}
-            >
-              <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1.75,
-                    bgcolor: "rgba(255,255,255,.12)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "1px solid rgba(255,255,255,.18)",
-                  }}
-                >
-                  <DescriptionOutlined
-                    sx={{
-                      fontSize: 20,
-                    }}
-                  />
-                </Box>
-
-                <Box>
-                  <Typography
-                    sx={{
-                      fontSize: 15,
-                      fontWeight: 800,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    Duty Officer's Inspection Checklist
-                  </Typography>
-
-                  <Typography
-                    sx={{
-                      fontSize: 10.5,
-                      opacity: 0.78,
-                      mt: 0.3,
-                    }}
-                  >
-                    Submitted report — view only
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <IconButton
-                size="small"
-                onClick={() => setSelectedReport(null)}
-                sx={{
-                  color: "#fff",
-                  bgcolor: "rgba(255,255,255,.10)",
-
-                  "&:hover": {
-                    bgcolor: "rgba(255,255,255,.18)",
-                  },
-                }}
-              >
-                <Close sx={{ fontSize: 19 }} />
-              </IconButton>
-            </Stack>
+            <DescriptionOutlined sx={{ fontSize: 21 }} />
           </Box>
+
+          <Box>
+            <Typography
+              sx={{
+                fontSize: { xs: 14, sm: 15 },
+                fontWeight: 800,
+                lineHeight: 1.2,
+              }}
+            >
+              Duty Officer's Inspection Checklist
+            </Typography>
+
+            <Typography
+              sx={{
+                fontSize: 10.5,
+                opacity: 0.78,
+                mt: 0.3,
+              }}
+            >
+              Submitted report — view only
+            </Typography>
+          </Box>
+        </Stack>
+
+        <IconButton
+          size="small"
+          onClick={() => setSelectedReport(null)}
+          sx={{
+            color: "#fff",
+            bgcolor: "rgba(255,255,255,.10)",
+
+            "&:hover": {
+              bgcolor: "rgba(255,255,255,.18)",
+            },
+          }}
+        >
+          <Close sx={{ fontSize: 19 }} />
+        </IconButton>
+      </Stack>
+    </Box>
+
+    <Box
+      sx={{
+        height: 3,
+        bgcolor: COLORS.red,
+      }}
+    />
+  </DialogTitle>
+
+  {/* =================================================
+      CONTENT
+  ================================================= */}
+
+  <DialogContent
+    dividers
+    sx={{
+      borderColor: COLORS.border,
+      p: { xs: 1.25, sm: 2 },
+      bgcolor: "#FBFCFE",
+    }}
+  >
+    {selectedReport && (
+      <Stack spacing={1.5}>
+
+        {/* =================================================
+            BASIC INFORMATION
+        ================================================= */}
+
+        <Box>
+          <Typography
+            sx={{
+              color: COLORS.primary,
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: ".5px",
+              mb: 0.75,
+            }}
+          >
+            BASIC INFORMATION
+          </Typography>
 
           <Box
             sx={{
-              height: 3,
-              bgcolor: COLORS.red,
+              bgcolor: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 1.75,
+              overflow: "hidden",
             }}
-          />
-        </DialogTitle>
+          >
+            <Grid container>
+              <Grid item xs={12} sm={4}>
+                <Box sx={{ p: 1.25 }}>
+                  <Typography
+                    sx={{
+                      color: COLORS.textMuted,
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      letterSpacing: ".45px",
+                    }}
+                  >
+                    DATE
+                  </Typography>
 
-        <DialogContent
-          dividers
+                  <Typography
+                    sx={{
+                      color: COLORS.textMain,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      mt: 0.25,
+                    }}
+                  >
+                    {selectedReport.date || "—"}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <Box sx={{ p: 1.25 }}>
+                  <Typography
+                    sx={{
+                      color: COLORS.textMuted,
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      letterSpacing: ".45px",
+                    }}
+                  >
+                    DUTY OFFICER
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color: COLORS.textMain,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      mt: 0.25,
+                    }}
+                  >
+                    {selectedReport.teacher?.name || "Unknown"}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <Box sx={{ p: 1.25 }}>
+                  <Typography
+                    sx={{
+                      color: COLORS.textMuted,
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      letterSpacing: ".45px",
+                    }}
+                  >
+                    CENTRE / BATCH
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color: COLORS.textMain,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      mt: 0.25,
+                    }}
+                  >
+                    {selectedReport.centreBatch || "—"}
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        </Box>
+
+        {/* =================================================
+            SUBMITTED BY
+        ================================================= */}
+
+        <Box
           sx={{
-            borderColor: COLORS.border,
-            p: { xs: 1.5, sm: 2 },
-            bgcolor: "#FBFCFE",
+            p: 1.25,
+            bgcolor: COLORS.primarySoft,
+            border: "1px solid #DBEAFE",
+            borderRadius: 1.75,
           }}
         >
-          {selectedReport && (
-            <Stack spacing={1.5}>
+          <Stack direction="row" spacing={1.2} alignItems="center">
+            <Avatar
+              sx={{
+                width: 38,
+                height: 38,
+                fontSize: 11,
+                fontWeight: 800,
+                bgcolor: colorForName(
+                  selectedReport.teacher?.name
+                ),
+              }}
+            >
+              {initials(selectedReport.teacher?.name)}
+            </Avatar>
+
+            <Box>
+              <Typography
+                sx={{
+                  color: COLORS.primaryLight,
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  letterSpacing: ".45px",
+                }}
+              >
+                SUBMITTED BY
+              </Typography>
+
+              <Typography
+                sx={{
+                  color: COLORS.textMain,
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                }}
+              >
+                {selectedReport.teacher?.name || "Unknown"}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        {/* =================================================
+            CHECKLIST PROGRESS
+        ================================================= */}
+
+        {(() => {
+          const checklistSections = [
+            {
+              key: "morningChecks",
+              title: "Readiness Check",
+            },
+            {
+              key: "middayChecks",
+              title: "Assets Inspection",
+            },
+            {
+              key: "afternoonChecks",
+              title: " Maintenance Round",
+            },
+          ];
+
+          const allChecks = checklistSections.flatMap(
+            (section) =>
+              Array.isArray(selectedReport[section.key])
+                ? selectedReport[section.key]
+                : []
+          );
+
+          const totalChecks = allChecks.length;
+
+          const completedChecks = allChecks.filter(
+            (item) =>
+              item?.completed === true ||
+              item?.checked === true ||
+              item?.value === true
+          ).length;
+
+          return (
+            <>
               {/* =================================================
-                  BASIC INFORMATION
+                  PROGRESS
               ================================================= */}
 
-              <Box>
-                <Typography
-                  sx={{
-                    color: COLORS.primary,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: ".5px",
-                    mb: 0.75,
-                  }}
+              <Box
+                sx={{
+                  bgcolor: COLORS.surface,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 1.75,
+                  p: 1.35,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ mb: 0.8 }}
                 >
-                  BASIC INFORMATION
-                </Typography>
+                  <Typography
+                    sx={{
+                      color: COLORS.primary,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                    }}
+                  >
+                    CHECKLIST COMPLETION
+                  </Typography>
+
+                  <Chip
+                    size="small"
+                    label={`${completedChecks} / ${totalChecks}`}
+                    sx={{
+                      height: 24,
+                      bgcolor:
+                        totalChecks > 0 &&
+                        completedChecks === totalChecks
+                          ? COLORS.greenSoft
+                          : COLORS.primarySoft,
+                      color:
+                        totalChecks > 0 &&
+                        completedChecks === totalChecks
+                          ? COLORS.green
+                          : COLORS.primary,
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      borderRadius: 1.5,
+                    }}
+                  />
+                </Stack>
 
                 <Box
                   sx={{
-                    bgcolor: COLORS.surface,
-                    border: `1px solid ${COLORS.border}`,
-                    borderRadius: 1.75,
+                    height: 7,
+                    bgcolor: "#E2E8F0",
+                    borderRadius: 99,
                     overflow: "hidden",
                   }}
                 >
-                  <Stack
-                    direction={{
-                      xs: "column",
-                      sm: "row",
+                  <Box
+                    sx={{
+                      width:
+                        totalChecks > 0
+                          ? `${(completedChecks / totalChecks) * 100}%`
+                          : "0%",
+                      height: "100%",
+                      bgcolor:
+                        completedChecks === totalChecks &&
+                        totalChecks > 0
+                          ? COLORS.green
+                          : COLORS.primaryLight,
+                      borderRadius: 99,
+                      transition: "width .3s ease",
                     }}
-                    divider={
-                      <Divider
-                        flexItem
-                        orientation="vertical"
-                        sx={{
-                          borderColor: COLORS.border,
-                        }}
-                      />
-                    }
-                  >
-                    <Box
-                      sx={{
-                        flex: 1,
-                        p: 1.25,
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          color: COLORS.textMuted,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: ".45px",
-                        }}
-                      >
-                        DATE
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: COLORS.textMain,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          mt: 0.25,
-                        }}
-                      >
-                        {selectedReport.date || "—"}
-                      </Typography>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        flex: 1,
-                        p: 1.25,
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          color: COLORS.textMuted,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: ".45px",
-                        }}
-                      >
-                        DUTY OFFICER
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: COLORS.textMain,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          mt: 0.25,
-                        }}
-                      >
-                        {selectedReport.teacher?.name || "Unknown"}
-                      </Typography>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        flex: 1,
-                        p: 1.25,
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          color: COLORS.textMuted,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: ".45px",
-                        }}
-                      >
-                        CENTRE
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: COLORS.textMain,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          mt: 0.25,
-                        }}
-                      >
-                        {selectedReport.centreBatch || "—"}
-                      </Typography>
-                    </Box>
-                  </Stack>
+                  />
                 </Box>
               </Box>
 
               {/* =================================================
-                  TEACHER
+                  CHECKLIST SECTIONS
               ================================================= */}
 
-              <Box
-                sx={{
-                  p: 1.25,
-                  bgcolor: COLORS.primarySoft,
-                  border: "1px solid #DBEAFE",
-                  borderRadius: 1.75,
-                }}
-              >
-                <Stack direction="row" spacing={1.2} alignItems="center">
-                  <Avatar
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      bgcolor: colorForName(selectedReport.teacher?.name),
-                    }}
-                  >
-                    {initials(selectedReport.teacher?.name)}
-                  </Avatar>
+              {checklistSections.map((section, sectionIndex) => {
+                const checks = Array.isArray(
+                  selectedReport[section.key]
+                )
+                  ? selectedReport[section.key]
+                  : [];
 
-                  <Box>
+                return (
+                  <Box key={section.key}>
                     <Typography
                       sx={{
-                        color: COLORS.primaryLight,
-                        fontSize: 9.5,
+                        color: COLORS.primary,
+                        fontSize: 11,
                         fontWeight: 800,
-                        letterSpacing: ".45px",
+                        letterSpacing: ".5px",
+                        mb: 0.75,
                       }}
                     >
-                      SUBMITTED BY
+                      {sectionIndex + 1}. {section.title}
                     </Typography>
 
+                    <Box
+                      sx={{
+                        bgcolor: COLORS.surface,
+                        border: `1px solid ${COLORS.border}`,
+                        borderRadius: 1.75,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {checks.length === 0 ? (
+                        <Box sx={{ p: 1.35 }}>
+                          <Typography
+                            sx={{
+                              color: COLORS.textMuted,
+                              fontSize: 12,
+                              fontStyle: "italic",
+                            }}
+                          >
+                            No checklist items recorded.
+                          </Typography>
+                        </Box>
+                      ) : (
+                        checks.map((item, index) => {
+                          const isCompleted =
+                            item?.completed === true ||
+                            item?.checked === true ||
+                            item?.value === true;
+
+                          const label =
+                            item?.label ||
+                            item?.question ||
+                            item?.title ||
+                            item?.name ||
+                            `Checklist item ${index + 1}`;
+
+                          const remark =
+                            item?.remark ||
+                            item?.remarks ||
+                            item?.note ||
+                            "";
+
+                          return (
+                            <Box
+                              key={item?._id || index}
+                              sx={{
+                                px: 1.25,
+                                py: 1,
+                                borderBottom:
+                                  index !== checks.length - 1
+                                    ? `1px solid ${COLORS.border}`
+                                    : "none",
+                              }}
+                            >
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="flex-start"
+                              >
+                                <Chip
+                                  size="small"
+                                  label={
+                                    isCompleted
+                                      ? "Completed"
+                                      : "Not Completed"
+                                  }
+                                  sx={{
+                                    flexShrink: 0,
+                                    mt: 0.05,
+                                    height: 22,
+                                    bgcolor: isCompleted
+                                      ? COLORS.greenSoft
+                                      : COLORS.redSoft,
+                                    color: isCompleted
+                                      ? COLORS.green
+                                      : COLORS.red,
+                                    border: `1px solid ${
+                                      isCompleted
+                                        ? "#BBF7D0"
+                                        : "#FECACA"
+                                    }`,
+                                    fontSize: 9.5,
+                                    fontWeight: 800,
+                                    borderRadius: 1.25,
+                                  }}
+                                />
+
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                  <Typography
+                                    sx={{
+                                      color: COLORS.textMain,
+                                      fontSize: 12,
+                                      fontWeight: 650,
+                                      lineHeight: 1.45,
+                                    }}
+                                  >
+                                    {label}
+                                  </Typography>
+
+                                  {remark && (
+                                    <Typography
+                                      sx={{
+                                        color: COLORS.textMuted,
+                                        fontSize: 11,
+                                        lineHeight: 1.45,
+                                        mt: 0.35,
+                                      }}
+                                    >
+                                      Remark: {remark}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Stack>
+                            </Box>
+                          );
+                        })
+                      )}
+                    </Box>
+                  </Box>
+                );
+              })}
+            </>
+          );
+        })()}
+
+        {/* =================================================
+            POSITIVE OBSERVATIONS
+        ================================================= */}
+
+        <Box
+          sx={{
+            bgcolor: COLORS.surface,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 1.75,
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              px: 1.25,
+              py: 0.8,
+              bgcolor: COLORS.greenSoft,
+              borderBottom: "1px solid #BBF7D0",
+            }}
+          >
+            <Typography
+              sx={{
+                color: COLORS.green,
+                fontSize: 11.5,
+                fontWeight: 800,
+              }}
+            >
+              Major Positive Observations
+            </Typography>
+          </Box>
+
+          <Box sx={{ p: 1.25 }}>
+            <Typography
+              sx={{
+                color: COLORS.textSecondary,
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {selectedReport.positiveObservations ||
+                "None reported"}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* =================================================
+            HYGIENE LAPSES
+        ================================================= */}
+
+        <Box
+          sx={{
+            bgcolor: COLORS.surface,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 1.75,
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              px: 1.25,
+              py: 0.8,
+              bgcolor: "#FFF7ED",
+              borderBottom: "1px solid #FED7AA",
+            }}
+          >
+            <Typography
+              sx={{
+                color: "#B45309",
+                fontSize: 11.5,
+                fontWeight: 800,
+              }}
+            >
+              Cleanliness / Hygiene Lapses
+            </Typography>
+          </Box>
+
+          <Box sx={{ p: 1.25 }}>
+            <Typography
+              sx={{
+                color: COLORS.textSecondary,
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {selectedReport.hygieneLapses ||
+                "None reported"}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* =================================================
+            MAINTENANCE FOLLOW-UP
+        ================================================= */}
+
+        <Box
+          sx={{
+            bgcolor: COLORS.surface,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 1.75,
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              px: 1.25,
+              py: 0.8,
+              bgcolor: COLORS.primarySoft,
+              borderBottom: "1px solid #DBEAFE",
+            }}
+          >
+            <Typography
+              sx={{
+                color: COLORS.primary,
+                fontSize: 11.5,
+                fontWeight: 800,
+              }}
+            >
+              Maintenance Follow-up
+            </Typography>
+          </Box>
+
+          <Box sx={{ p: 1.25 }}>
+            <Typography
+              sx={{
+                color: COLORS.textSecondary,
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {selectedReport.maintenanceFollowUp ||
+                "None reported"}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* =================================================
+            URGENT MATTERS
+        ================================================= */}
+
+        <Box
+          sx={{
+            p: 1.25,
+            bgcolor: selectedReport.urgentMatters
+              ? COLORS.redSoft
+              : COLORS.surfaceSoft,
+            border: `1px solid ${
+              selectedReport.urgentMatters
+                ? "#FECACA"
+                : COLORS.border
+            }`,
+            borderRadius: 1.75,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="flex-start"
+          >
+            <WarningAmberOutlined
+              sx={{
+                fontSize: 19,
+                color: selectedReport.urgentMatters
+                  ? COLORS.red
+                  : COLORS.textMuted,
+              }}
+            />
+
+            <Box>
+              <Typography
+                sx={{
+                  color: selectedReport.urgentMatters
+                    ? COLORS.redDark
+                    : COLORS.textSecondary,
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                }}
+              >
+                Urgent Matters
+              </Typography>
+
+              <Typography
+                sx={{
+                  color: COLORS.textSecondary,
+                  fontSize: 12,
+                  lineHeight: 1.55,
+                  mt: 0.25,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {selectedReport.urgentMatters ||
+                  "None reported"}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        {/* =================================================
+            VERIFICATION / SIGNATURE
+        ================================================= */}
+
+        <Box>
+          <Typography
+            sx={{
+              color: COLORS.primary,
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: ".5px",
+              mb: 0.75,
+            }}
+          >
+            VERIFICATION
+          </Typography>
+
+          <Grid container spacing={1.25}>
+            <Grid item xs={12} sm={6}>
+              <Box
+                sx={{
+                  bgcolor: COLORS.surface,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 1.75,
+                  p: 1.35,
+                  minHeight: 80,
+                }}
+              >
+                <Typography
+                  sx={{
+                    color: COLORS.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    letterSpacing: ".45px",
+                  }}
+                >
+                  SIGNATURE
+                </Typography>
+
+                {selectedReport.signature ? (
+                  typeof selectedReport.signature === "string" &&
+                  selectedReport.signature.startsWith("data:image") ? (
+                    <Box
+                      component="img"
+                      src={selectedReport.signature}
+                      alt="Duty Officer Signature"
+                      sx={{
+                        display: "block",
+                        maxWidth: "100%",
+                        maxHeight: 55,
+                        mt: 0.75,
+                        objectFit: "contain",
+                      }}
+                    />
+                  ) : (
                     <Typography
                       sx={{
                         color: COLORS.textMain,
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {selectedReport.teacher?.name || "Unknown"}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Box>
-
-              {/* =================================================
-                  POSITIVE OBSERVATIONS
-              ================================================= */}
-
-              <Box
-                sx={{
-                  bgcolor: COLORS.surface,
-                  border: `1px solid ${COLORS.border}`,
-                  borderRadius: 1.75,
-                  overflow: "hidden",
-                }}
-              >
-                <Box
-                  sx={{
-                    px: 1.25,
-                    py: 0.8,
-                    bgcolor: COLORS.greenSoft,
-                    borderBottom: "1px solid #BBF7D0",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      color: COLORS.green,
-                      fontSize: 11.5,
-                      fontWeight: 800,
-                    }}
-                  >
-                    Major Positive Observations
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 1.25 }}>
-                  <Typography
-                    sx={{
-                      color: COLORS.textSecondary,
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {selectedReport.positiveObservations || "None reported"}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* =================================================
-                  HYGIENE
-              ================================================= */}
-
-              <Box
-                sx={{
-                  bgcolor: COLORS.surface,
-                  border: `1px solid ${COLORS.border}`,
-                  borderRadius: 1.75,
-                  overflow: "hidden",
-                }}
-              >
-                <Box
-                  sx={{
-                    px: 1.25,
-                    py: 0.8,
-                    bgcolor: "#FFF7ED",
-                    borderBottom: "1px solid #FED7AA",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      color: "#B45309",
-                      fontSize: 11.5,
-                      fontWeight: 800,
-                    }}
-                  >
-                    Cleanliness / Hygiene Lapses
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 1.25 }}>
-                  <Typography
-                    sx={{
-                      color: COLORS.textSecondary,
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {selectedReport.hygieneLapses || "None reported"}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* =================================================
-                  URGENT
-              ================================================= */}
-
-              <Box
-                sx={{
-                  p: 1.25,
-                  bgcolor: selectedReport.urgentMatters
-                    ? COLORS.redSoft
-                    : COLORS.surfaceSoft,
-                  border: `1px solid ${
-                    selectedReport.urgentMatters ? "#FECACA" : COLORS.border
-                  }`,
-                  borderRadius: 1.75,
-                }}
-              >
-                <Stack direction="row" spacing={1} alignItems="flex-start">
-                  <WarningAmberOutlined
-                    sx={{
-                      fontSize: 19,
-                      color: selectedReport.urgentMatters
-                        ? COLORS.red
-                        : COLORS.textMuted,
-                    }}
-                  />
-
-                  <Box>
-                    <Typography
-                      sx={{
-                        color: selectedReport.urgentMatters
-                          ? COLORS.redDark
-                          : COLORS.textSecondary,
-                        fontSize: 11.5,
-                        fontWeight: 800,
-                      }}
-                    >
-                      Urgent Matters
-                    </Typography>
-
-                    <Typography
-                      sx={{
-                        color: COLORS.textSecondary,
                         fontSize: 12,
-                        lineHeight: 1.55,
-                        mt: 0.25,
+                        fontWeight: 700,
+                        mt: 0.6,
+                        wordBreak: "break-word",
                       }}
                     >
-                      {selectedReport.urgentMatters || "None reported"}
+                      {selectedReport.signature}
                     </Typography>
-                  </Box>
-                </Stack>
+                  )
+                ) : (
+                  <Typography
+                    sx={{
+                      color: COLORS.textMuted,
+                      fontSize: 12,
+                      mt: 0.6,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No signature provided
+                  </Typography>
+                )}
               </Box>
-            </Stack>
-          )}
-        </DialogContent>
+            </Grid>
 
-        <DialogActions
-          sx={{
-            p: 1.5,
-            bgcolor: COLORS.surface,
-          }}
-        >
-          <Button
-            onClick={() => setSelectedReport(null)}
-            variant="contained"
-            sx={{
-              minWidth: 82,
-              height: 38,
-              bgcolor: COLORS.primary,
-              borderRadius: 1.75,
-              px: 2,
-              textTransform: "none",
-              fontSize: 12.5,
-              fontWeight: 700,
-              boxShadow: "none",
+            <Grid item xs={12} sm={6}>
+              <Box
+                sx={{
+                  bgcolor: COLORS.surface,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 1.75,
+                  p: 1.35,
+                  minHeight: 80,
+                }}
+              >
+                <Typography
+                  sx={{
+                    color: COLORS.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    letterSpacing: ".45px",
+                  }}
+                >
+                  COUNTERSIGNED BY
+                </Typography>
 
-              "&:hover": {
-                bgcolor: COLORS.primaryDark,
-                boxShadow: "none",
-              },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+                <Typography
+                  sx={{
+                    color: COLORS.textMain,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    mt: 0.55,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {selectedReport.countersignedBy ||
+                    "Not countersigned"}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Box>
+      </Stack>
+    )}
+  </DialogContent>
+
+  {/* =================================================
+      FOOTER
+  ================================================= */}
+
+  <DialogActions
+    sx={{
+      p: 1.5,
+      bgcolor: COLORS.surface,
+      borderTop: `1px solid ${COLORS.border}`,
+    }}
+  >
+    <Button
+      onClick={() => setSelectedReport(null)}
+      variant="contained"
+      sx={{
+        minWidth: 82,
+        height: 38,
+        bgcolor: COLORS.primary,
+        borderRadius: 1.75,
+        px: 2,
+        textTransform: "none",
+        fontSize: 12.5,
+        fontWeight: 700,
+        boxShadow: "none",
+
+        "&:hover": {
+          bgcolor: COLORS.primaryDark,
+          boxShadow: "none",
+        },
+      }}
+    >
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
+
+
     </Box>
   );
 }

@@ -10,6 +10,7 @@ const getMyNotifications = async (req, res) => {
       recipient: req.user._id,
     })
       .populate("task", "title status")
+      .populate("notice", "title subtitle type isActive")
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -132,6 +133,40 @@ const subscribeToPush = async (req, res) => {
     console.error("subscribeToPush error:", err);
     res.status(500).json({ message: "Could not save push subscription" });
   }
+}; // ======================================================
+// DELETE /api/notifications/:id
+// Delete current user's single notification
+// ======================================================
+const deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Sirf wahi notification delete hogi
+    // jo currently logged-in user ki hai
+    const notification = await Notification.findOneAndDelete({
+      _id: id,
+      recipient: req.user._id,
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteNotification error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete notification",
+    });
+  }
 };
 module.exports = {
   getMyNotifications,
@@ -139,4 +174,5 @@ module.exports = {
   markAsRead,
   markAllAsRead,
   subscribeToPush,
+  deleteNotification,
 };

@@ -1,4 +1,3 @@
-
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { sendPushNotification } = require("./pushService");
@@ -9,6 +8,7 @@ const createNotification = async ({
   title,
   message,
   task = null,
+  notice = null,
 }) => {
   try {
     // ==========================================
@@ -21,54 +21,48 @@ const createNotification = async ({
       title,
       message,
       task,
+      notice,
     });
 
     // ==========================================
     // 2. FIND RECIPIENT
     // ==========================================
 
-    const user = await User.findById(recipient).select(
-      "pushSubscription"
-    );
+    const user = await User.findById(recipient).select("pushSubscription");
 
     // ==========================================
-    // 3. SEND PHONE PUSH NOTIFICATION
+    // 3. SEND PHONE / BROWSER PUSH
     // ==========================================
 
     if (user?.pushSubscription?.endpoint) {
-      await sendPushNotification(
-        user.pushSubscription,
-        {
-          title,
-          body: message,
+      await sendPushNotification(user.pushSubscription, {
+        title,
+        body: message,
 
-          // Data frontend ko milega
-          notificationId: notification._id.toString(),
+        notificationId: notification._id.toString(),
 
-          taskId: task ? task.toString() : null,
+        taskId: task ? task.toString() : null,
 
-          type,
+        noticeId: notice ? notice.toString() : null,
 
-          url: task
-            ? `/tasks/${task}`
+        type,
+
+        url: task
+          ? `/tasks/${task}`
+          : notice
+            ? `/notices/${notice}`
             : "/notifications",
-        }
-      );
+      });
     } else {
-      console.log(
-        `ℹ️ User ${recipient} has no push subscription`
-      );
+      console.log(`ℹ️ User ${recipient} has no push subscription`);
     }
 
     return notification;
   } catch (error) {
-    console.error(
-      "createNotification error:",
-      error
-    );
+    console.error("createNotification error:", error);
 
-    // Notification fail hone ki wajah se
-    // main task operation fail nahi hona chahiye.
+    // Notification fail hone par
+    // main operation fail nahi hoga.
     return null;
   }
 };
@@ -76,4 +70,3 @@ const createNotification = async ({
 module.exports = {
   createNotification,
 };
-

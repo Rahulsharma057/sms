@@ -1,5 +1,6 @@
 const Notice = require("../models/Notice");
 
+const { createNotification } = require("../services/notificationService");
 const VALID_TYPES = ["warning", "notice", "announcement", "update"];
 
 const sanitizeTargeting = ({ targetType, targetUsers }) => {
@@ -12,38 +13,116 @@ const sanitizeType = (type) => (VALID_TYPES.includes(type) ? type : "notice");
 
 // POST /api/notices  (superadmin)
 const createNotice = async (req, res) => {
-  const {
-    title, subtitle, caption, information, type,
-    buttonLabel, buttonUrl, isActive,
-    targetType, targetUsers,
-  } = req.body;
+  try {
+    const {
+      title,
+      subtitle,
+      caption,
+      information,
+      type,
+      buttonLabel,
+      buttonUrl,
+      isActive,
+      targetType,
+      targetUsers,
+    } = req.body;
 
-  if (!title || !title.trim()) {
-    return res.status(400).json({ message: "Title is required." });
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        message: "Title is required.",
+      });
+    }
+
+    const {
+      targetType: safeType,
+      targetUsers: safeUsers,
+    } = sanitizeTargeting({
+      targetType,
+      targetUsers,
+    });
+
+    if (safeType === "specific" && safeUsers.length === 0) {
+      return res.status(400).json({
+        message:
+          "Select at least one user, or choose 'All users'.",
+      });
+    }
+
+    // =====================================================
+    // CREATE NOTICE
+    // =====================================================
+
+    const notice = await Notice.create({
+      title: title.trim(),
+      subtitle,
+      caption,
+      information,
+      type: sanitizeType(type),
+      buttonLabel,
+      buttonUrl,
+      isActive: isActive !== undefined ? !!isActive : true,
+      targetType: safeType,
+      targetUsers: safeUsers,
+      createdBy: req.user._id,
+    });
+
+    // =====================================================
+    // NOTIFICATION
+    // Only notify users if notice is active
+    // =====================================================
+
+    if (notice.isActive) {
+      let recipients = [];
+
+      if (safeType === "specific") {
+        // Notify selected users
+        recipients = safeUsers;
+      } else {
+        // Notify all users except SuperAdmin who created notice
+        const User = require("../models/User");
+
+        recipients = await User.find({
+          _id: { $ne: req.user._id },
+        }).distinct("_id");
+      }
+
+      // Create notification for each recipient
+      await Promise.all(
+        recipients.map((recipient) =>
+          createNotification({
+            recipient,
+            type: "NEW_NOTICE",
+            title: "New Notice",
+            message: notice.title,
+            notice: notice._id,
+          })
+        )
+      );
+    }
+
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
+    const populated = await notice.populate([
+      {
+        path: "targetUsers",
+        select: "name email",
+      },
+      {
+        path: "createdBy",
+        select: "name email",
+      },
+    ]);
+
+    res.status(201).json(populated);
+  } catch (err) {
+    console.error("createNotice error:", err);
+
+    res.status(500).json({
+      message: "Could not create notice",
+    });
   }
-
-  const { targetType: safeType, targetUsers: safeUsers } = sanitizeTargeting({ targetType, targetUsers });
-
-  if (safeType === "specific" && safeUsers.length === 0) {
-    return res.status(400).json({ message: "Select at least one user, or choose 'All users'." });
-  }
-
-  const notice = await Notice.create({
-    title: title.trim(),
-    subtitle,
-    caption,
-    information,
-    type: sanitizeType(type),
-    buttonLabel,
-    buttonUrl,
-    isActive: isActive !== undefined ? !!isActive : true,
-    targetType: safeType,
-    targetUsers: safeUsers,
-    createdBy: req.user._id,
-  });
-
-  const populated = await notice.populate("targetUsers", "name email");
-  res.status(201).json(populated);
 };
 
 // PATCH /api/notices/:id  (superadmin)
@@ -216,6 +295,8 @@ const getNoticeById = async (req, res) => {
 
   res.json(notice);
 };
+
+
 
 module.exports = {
   createNotice,

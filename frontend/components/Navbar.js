@@ -39,7 +39,7 @@ import {
   NotificationsNone,
   AssignmentOutlined,
   ChatBubbleOutline,
-  CheckCircleOutline,
+  CheckCircleOutline, DeleteOutline, 
 } from "@mui/icons-material";
 
 import Image from "next/image";
@@ -158,18 +158,19 @@ export default function Navbar() {
       }
 
       // If notification belongs to a task, open task
-      if (notification.task) {
-        const taskId =
-          notification.task?._id || notification.task;
+      if (notification.type === "NEW_NOTICE" && notification.notice) {
+  const noticeId =
+    notification.notice?._id || notification.notice;
 
-        if (user.role === "teacher") {
-          router.push(`/teacher/tasks?task=${taskId}`);
-        } else if (user.role === "superadmin") {
-          router.push(`/admin/tasks?task=${taskId}`);
-        }
+  if (user.role === "teacher") {
+    router.push(`/teacher/notice?notice=${noticeId}`);
+  } else if (user.role === "superadmin") {
+    router.push(`/admin/notice?notice=${noticeId}`);
+  }
 
-        setNotificationAnchor(null);
-      }
+  setNotificationAnchor(null);
+  return;
+}
     } catch (error) {
       console.error("Could not mark notification as read:", error);
     }
@@ -189,6 +190,23 @@ export default function Navbar() {
       console.error("Could not mark all notifications as read:", error);
     }
   };
+  // =========================================================
+// DELETE NOTIFICATION
+// =========================================================
+
+const deleteNotification = async (notificationId) => {
+  if (!notificationId) return;
+
+  try {
+    await api.delete(`/notifications/${notificationId}`);
+
+    setNotifications((prev) =>
+      prev.filter((item) => item._id !== notificationId)
+    );
+  } catch (error) {
+    console.error("Could not delete notification:", error);
+  }
+};
 
   // =========================================================
   // NOTIFICATION ICON
@@ -204,7 +222,8 @@ export default function Navbar() {
 
       case "TASK_STATUS":
         return <CheckCircleOutline fontSize="small" />;
-
+case "NEW_NOTICE":
+  return <Description fontSize="small" />;
       default:
         return <NotificationsNone fontSize="small" />;
     }
@@ -1013,125 +1032,139 @@ export default function Navbar() {
                 </Box>
               ) : (
                 notifications.map((notification) => (
-                  <Box
-                    key={notification._id}
-                    onClick={() =>
-                      markNotificationRead(
-                        notification
-                      )
-                    }
-                    sx={{
-                      display: "flex",
-                      gap: 1.2,
-                      px: 1.7,
-                      py: 1.35,
-                      cursor: "pointer",
+                <Box
+  key={notification._id}
+  onClick={() => markNotificationRead(notification)}
+  sx={{
+    display: "flex",
+    gap: 1.2,
+    px: 1.7,
+    py: 1.35,
+    cursor: "pointer",
 
-                      bgcolor: notification.isRead
-                        ? "#FFFFFF"
-                        : "rgba(23, 43, 143, 0.055)",
+    bgcolor: notification.isRead
+      ? "#FFFFFF"
+      : "rgba(23, 43, 143, 0.055)",
 
-                      borderBottom:
-                        "1px solid rgba(0,0,0,0.05)",
+    borderBottom:
+      "1px solid rgba(0,0,0,0.05)",
 
-                      "&:hover": {
-                        bgcolor:
-                          "rgba(23, 43, 143, 0.08)",
-                      },
-                    }}
-                  >
-                    {/* Icon */}
+    "&:hover": {
+      bgcolor:
+        "rgba(23, 43, 143, 0.08)",
+    },
+  }}
+>
+  {/* ICON */}
 
-                    <Box
-                      sx={{
-                        width: 34,
-                        height: 34,
-                        minWidth: 34,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        bgcolor:
-                          "rgba(23, 43, 143, 0.09)",
-                        color: BLUE,
-                      }}
-                    >
-                      {getNotificationIcon(
-                        notification.type
-                      )}
-                    </Box>
+  <Box
+    sx={{
+      width: 34,
+      height: 34,
+      minWidth: 34,
+      borderRadius: "50%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      bgcolor: "rgba(23, 43, 143, 0.09)",
+      color: BLUE,
+    }}
+  >
+    {getNotificationIcon(notification.type)}
+  </Box>
 
-                    {/* Content */}
+  {/* CONTENT */}
 
-                    <Box
-                      sx={{
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0.7,
-                        }}
-                      >
-                        {!notification.isRead && (
-                          <Box
-                            sx={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              bgcolor: "error.main",
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
+  <Box
+    sx={{
+      minWidth: 0,
+      flex: 1,
+    }}
+  >
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.7,
+      }}
+    >
+      {!notification.isRead && (
+        <Box
+          sx={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            bgcolor: "error.main",
+            flexShrink: 0,
+          }}
+        />
+      )}
 
-                        <Typography
-                          fontWeight={
-                            notification.isRead
-                              ? 600
-                              : 800
-                          }
-                          fontSize="0.84rem"
-                          noWrap
-                        >
-                          {notification.title}
-                        </Typography>
-                      </Box>
+      <Typography
+        fontWeight={
+          notification.isRead ? 600 : 800
+        }
+        fontSize="0.84rem"
+        noWrap
+      >
+        {notification.title}
+      </Typography>
+    </Box>
 
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          mt: 0.3,
-                          fontSize: "0.78rem",
-                          lineHeight: 1.4,
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {notification.message}
-                      </Typography>
+    <Typography
+      variant="body2"
+      color="text.secondary"
+      sx={{
+        mt: 0.3,
+        fontSize: "0.78rem",
+        lineHeight: 1.4,
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+      }}
+    >
+      {notification.message}
+    </Typography>
 
-                      <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        sx={{
-                          display: "block",
-                          mt: 0.45,
-                          fontSize: "0.68rem",
-                        }}
-                      >
-                        {formatNotificationTime(
-                          notification.createdAt
-                        )}
-                      </Typography>
-                    </Box>
-                  </Box>
+    <Typography
+      variant="caption"
+      color="text.disabled"
+      sx={{
+        display: "block",
+        mt: 0.45,
+        fontSize: "0.68rem",
+      }}
+    >
+      {formatNotificationTime(
+        notification.createdAt
+      )}
+    </Typography>
+  </Box>
+
+  {/* DELETE BUTTON */}
+
+  <IconButton
+    size="small"
+    onClick={(event) => {
+      event.stopPropagation();
+
+      deleteNotification(notification._id);
+    }}
+    sx={{
+      alignSelf: "center",
+      flexShrink: 0,
+      color: "text.disabled",
+
+      "&:hover": {
+        color: "error.main",
+        bgcolor: "rgba(211, 47, 47, 0.08)",
+      },
+    }}
+  >
+    <DeleteOutline fontSize="small" />
+  </IconButton>
+</Box>
                 ))
               )}
             </Box>

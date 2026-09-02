@@ -11,7 +11,7 @@ const notificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["NEW_TASK", "NEW_MESSAGE", "TASK_STATUS"],
+      enum: ["NEW_TASK", "NEW_MESSAGE", "TASK_STATUS", "NEW_NOTICE"],
       required: true,
     },
 
@@ -33,6 +33,12 @@ const notificationSchema = new mongoose.Schema(
       default: null,
     },
 
+    notice: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Notice",
+      default: null,
+    },
+
     isRead: {
       type: Boolean,
       default: false,
@@ -41,7 +47,7 @@ const notificationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("Notification", notificationSchema);
