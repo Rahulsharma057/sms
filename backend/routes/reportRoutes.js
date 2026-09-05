@@ -1,24 +1,46 @@
 const express = require("express");
 const {
-  createReport, getTodayReport, getMyReports, getAllReports, getReportById,
-  updateCheckStatus, getIssuesSummary, getIssuesList, deleteReport,
+  createReport,
+  getReportTemplate,
+  updateReportTemplate,
+  getTodayReport,
+  getMyReports,
+  getAllReports,
+  getReportById,
+  updateCheckStatus,
+  updateReport,
+  getIssuesSummary,
+  getIssuesList,
+  deleteReport,
 } = require("../controllers/reportController");
-const { protect, isSuperAdmin } = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 
 const router = express.Router();
 
+const allowAdmin = (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+  if (!["admin", "superadmin"].includes(role)) {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+};
+
 router.use(protect);
-router.post("/", createReport);
+
+// Static routes must stay before /:id.
+router.get("/template", getReportTemplate);
+router.put("/template", allowAdmin, updateReportTemplate);
 router.get("/today", getTodayReport);
-
-//  aur /mine, /:id se PEHLE hone chahiye warna Express unhe id samajh lega
-router.get("/issues/summary", isSuperAdmin, getIssuesSummary);
-router.get("/issues", isSuperAdmin, getIssuesList);
+router.get("/issues/summary", allowAdmin, getIssuesSummary);
+router.get("/issues", allowAdmin, getIssuesList);
 router.get("/mine", getMyReports);
-router.get("/", isSuperAdmin, getAllReports);
-router.get("/:id", getReportById);
+router.get("/", allowAdmin, getAllReports);
 
-router.patch("/:id/check-status", isSuperAdmin, updateCheckStatus);
-router.delete("/:id", isSuperAdmin, deleteReport);
+router.get("/:id", getReportById);
+router.patch("/:id/check-status", allowAdmin, updateCheckStatus);
+router.patch("/:id", allowAdmin, updateReport);
+router.delete("/:id", allowAdmin, deleteReport);
+
+router.post("/", createReport);
 
 module.exports = router;

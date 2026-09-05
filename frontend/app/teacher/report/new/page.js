@@ -1,4 +1,5 @@
 "use client";
+
 import { Box } from "@mui/material";
 import ProtectedRoute from "../../../../components/ProtectedRoute";
 import Navbar from "../../../../components/Navbar";

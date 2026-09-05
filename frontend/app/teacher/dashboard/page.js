@@ -132,11 +132,49 @@ function TeacherDashboardInner() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const [reports, setReports] = useState([]);
   const [tasks, setTasks] = useState([]);
+useEffect(() => {
+  const loadDashboard = async () => {
+    try {
+      const [reportsRes, tasksRes] = await Promise.all([
+        api.get("/reports/mine"),
+        api.get("/tasks/mine"),
+      ]);
 
-  useEffect(() => {
-    api.get("/reports/mine").then((res) => setReports(res.data));
-    api.get("/tasks/mine").then((res) => setTasks(res.data));
-  }, []);
+      const reportsData = reportsRes?.data;
+      const tasksData = tasksRes?.data;
+
+      setReports(
+        Array.isArray(reportsData)
+          ? reportsData
+          : Array.isArray(reportsData?.data)
+            ? reportsData.data
+            : Array.isArray(reportsData?.reports)
+              ? reportsData.reports
+              : Array.isArray(reportsData?.data?.reports)
+                ? reportsData.data.reports
+                : []
+      );
+
+      setTasks(
+        Array.isArray(tasksData)
+          ? tasksData
+          : Array.isArray(tasksData?.data)
+            ? tasksData.data
+            : Array.isArray(tasksData?.tasks)
+              ? tasksData.tasks
+              : Array.isArray(tasksData?.data?.tasks)
+                ? tasksData.data.tasks
+                : []
+      );
+    } catch (error) {
+      console.error("Teacher dashboard load error:", error);
+      setReports([]);
+      setTasks([]);
+    }
+  };
+
+  loadDashboard();
+}, []);
 
   const pendingTasks = tasks.filter((t) => t.status !== "completed").length;
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
