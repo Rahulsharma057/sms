@@ -62,7 +62,28 @@ const DEFAULT_REPORT_SECTIONS = [
     followed: false,
   })),
 }));
+const DEFAULT_FIXED_FIELDS = {
+  positiveObservations: { label: "Major positive observations", enabled: true },
+  hygieneLapses: { label: "Cleanliness / hygiene lapses noted", enabled: true },
+  maintenanceFollowUp: { label: "Maintenance items needing follow-up action", enabled: true },
+  urgentMatters: { label: "Urgent Matters", enabled: true },
+  signature: { label: "Signature of Duty Officer", enabled: true },
+  countersignedBy: { label: "Countersigned by", enabled: true },
+};
 
+const FIXED_FIELD_KEYS = Object.keys(DEFAULT_FIXED_FIELDS);
+
+const cleanFixedFields = (payload) => {
+  const result = {};
+  FIXED_FIELD_KEYS.forEach((key) => {
+    const source = payload?.[key] || {};
+    result[key] = {
+      label: String(source.label || DEFAULT_FIXED_FIELDS[key].label).trim(),
+      enabled: source.enabled === undefined ? true : Boolean(source.enabled),
+    };
+  });
+  return result;
+};
 const getTodayIST = () => {
   const now = new Date();
   return new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
@@ -386,38 +407,35 @@ const createReport = async (req, res) => {
 const cleanTemplate = (payload) => {
   const sections = cleanSections(payload?.sections || []);
   const customFields = cleanCustomFields(
-    (payload?.customFields || []).map((field) => ({
-      ...field,
-      value: undefined,
-    })),
-  ).map(({ key, label, type, options, required }) => ({
-    key,
-    label,
-    type,
-    options,
-    required,
-  }));
+    (payload?.customFields || []).map((field) => ({ ...field, value: undefined })),
+  ).map(({ key, label, type, options, required }) => ({ key, label, type, options, required }));
+
   if (!sections.length) {
     const error = new Error("At least one report section is required.");
     error.statusCode = 400;
     throw error;
   }
-  return { sections, customFields };
-};
 
+  const fixedFields = cleanFixedFields(payload?.fixedFields); // NEW
+
+  return { sections, customFields, fixedFields }; // NEW: fixedFields added
+};
 const getReportTemplate = async (req, res) => {
   try {
-    const template = await ReportTemplate.findOne({
-      name: "Daily Report",
-    }).lean();
+    const template = await ReportTemplate.findOne({ name: "Daily Report" }).lean();
     return res.json(
       template
         ? {
             sections: template.sections || [],
             customFields: template.customFields || [],
+            fixedFields: { ...DEFAULT_FIXED_FIELDS, ...(template.fixedFields || {}) }, // NEW
             updatedAt: template.updatedAt,
           }
-        : { sections: DEFAULT_REPORT_SECTIONS, customFields: [] },
+        : {
+            sections: DEFAULT_REPORT_SECTIONS,
+            customFields: [],
+            fixedFields: DEFAULT_FIXED_FIELDS, // NEW
+          },
     );
   } catch (error) {
     return res.status(500).json({ message: "Failed to load report format" });
@@ -437,26 +455,21 @@ const updateReportTemplate = async (req, res) => {
             key: section.key,
             title: section.title,
             timing: section.timing,
-            items: section.items.map((item) => ({
-              key: item.key,
-              label: item.label,
-            })),
+            items: section.items.map((item) => ({ key: item.key, label: item.label })),
           })),
           customFields: cleaned.customFields,
+          fixedFields: cleaned.fixedFields, // NEW
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
     return res.json({
-      message:
-        "Daily report format updated successfully. Existing submitted reports were not changed.",
+      message: "Daily report format updated successfully. Existing submitted reports were not changed.",
       template,
     });
   } catch (error) {
     console.error("updateReportTemplate error:", error);
-    return res
-      .status(error.statusCode || 500)
-      .json({ message: error.message || "Failed to update report format" });
+    return res.status(error.statusCode || 500).json({ message: error.message || "Failed to update report format" });
   }
 };
 

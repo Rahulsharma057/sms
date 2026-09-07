@@ -22,6 +22,8 @@ import {
   Badge,
   Popover,
   CircularProgress,
+  Switch,
+  Stack,
 } from "@mui/material";
 
 import {
@@ -33,13 +35,15 @@ import {
   Logout,
   ReportProblem,
   DynamicForm,
+  Assessment,
   ExpandMore,
   ExpandLess,
   Description,
   NotificationsNone,
   AssignmentOutlined,
   ChatBubbleOutline,
-  CheckCircleOutline, DeleteOutline, 
+  CheckCircleOutline, DeleteOutline,
+  SettingsOutlined,
 } from "@mui/icons-material";
 
 import Image from "next/image";
@@ -63,6 +67,11 @@ export default function Navbar() {
   const [formsMenuAnchor, setFormsMenuAnchor] = useState(null);
   const [formsDrawerOpen, setFormsDrawerOpen] = useState(false);
 
+  // NEW: Dynamic Reports menu state
+  const [visibleDynamicReports, setVisibleDynamicReports] = useState([]);
+  const [reportsMenuAnchor, setReportsMenuAnchor] = useState(null);
+  const [reportsDrawerOpen, setReportsDrawerOpen] = useState(false);
+
   // =========================================================
   // NOTIFICATIONS
   // =========================================================
@@ -70,6 +79,53 @@ export default function Navbar() {
   const [notificationAnchor, setNotificationAnchor] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notificationLoading, setNotificationLoading] = useState(false);
+
+  // =========================================================
+  // NOTIFICATION PREFERENCES (mute per category)
+  // =========================================================
+
+  const [prefsAnchor, setPrefsAnchor] = useState(null);
+  const [mutedTypes, setMutedTypes] = useState([]);
+const NOTIFICATION_CATEGORIES = [
+  { key: "TASK", label: "Tasks & Messages" },
+  { key: "NOTICE", label: "Notices" },
+  { key: "REPORT", label: "Dynamic Reports" },
+  { key: "FORM", label: "Forms" }, 
+];
+
+  const loadPreferences = async () => {
+    try {
+      const res = await api.get("/notifications/preferences");
+      setMutedTypes(res.data?.mutedTypes || []);
+    } catch (error) {
+      console.error("Could not load notification preferences:", error);
+    }
+  };
+
+  const handlePrefsOpen = (event) => {
+    setPrefsAnchor(event.currentTarget);
+    loadPreferences();
+  };
+
+  const handlePrefsClose = () => {
+    setPrefsAnchor(null);
+  };
+
+  const toggleMute = async (category) => {
+    const next = mutedTypes.includes(category)
+      ? mutedTypes.filter((c) => c !== category)
+      : [...mutedTypes, category];
+
+    const prev = mutedTypes;
+    setMutedTypes(next); // optimistic update
+
+    try {
+      await api.patch("/notifications/preferences", { mutedTypes: next });
+    } catch (error) {
+      console.error("Could not update notification preferences:", error);
+      setMutedTypes(prev); // revert on failure
+    }
+  };
 
   const BLUE = "rgba(23, 43, 143, 0.98)";
   const LIGHT_BG = "#FFFFFF";
@@ -84,6 +140,19 @@ export default function Navbar() {
     api
       .get("/forms/visible")
       .then((res) => setVisibleForms(res.data || []))
+      .catch(() => {});
+  }, [user]);
+
+  // =========================================================
+  // LOAD DYNAMIC REPORTS (NEW)
+  // =========================================================
+
+  useEffect(() => {
+    if (!user || user.role === "superadmin") return;
+
+    api
+      .get("/dynamic-reports/visible")
+      .then((res) => setVisibleDynamicReports(res.data || []))
       .catch(() => {});
   }, [user]);
 
@@ -171,6 +240,25 @@ export default function Navbar() {
   setNotificationAnchor(null);
   return;
 }
+
+      // NEW: dynamic report notifications
+      if (
+        (notification.type === "NEW_DYNAMIC_REPORT" ||
+          notification.type === "DYNAMIC_REPORT_SUBMITTED") &&
+        notification.dynamicReport
+      ) {
+        const reportId =
+          notification.dynamicReport?._id || notification.dynamicReport;
+
+        if (notification.type === "NEW_DYNAMIC_REPORT") {
+          router.push(`/reports/${reportId}`);
+        } else if (user.role === "superadmin") {
+          router.push(`/admin/dynamic-reports/${reportId}/entries`);
+        }
+
+        setNotificationAnchor(null);
+        return;
+      }
     } catch (error) {
       console.error("Could not mark notification as read:", error);
     }
@@ -211,23 +299,25 @@ const deleteNotification = async (notificationId) => {
   // =========================================================
   // NOTIFICATION ICON
   // =========================================================
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "NEW_TASK":
-        return <AssignmentOutlined fontSize="small" />;
-
-      case "NEW_MESSAGE":
-        return <ChatBubbleOutline fontSize="small" />;
-
-      case "TASK_STATUS":
-        return <CheckCircleOutline fontSize="small" />;
-case "NEW_NOTICE":
-  return <Description fontSize="small" />;
-      default:
-        return <NotificationsNone fontSize="small" />;
-    }
-  };
+const getNotificationIcon = (type) => {
+  switch (type) {
+    case "NEW_TASK":
+      return <AssignmentOutlined fontSize="small" />;
+    case "NEW_MESSAGE":
+      return <ChatBubbleOutline fontSize="small" />;
+    case "TASK_STATUS":
+      return <CheckCircleOutline fontSize="small" />;
+    case "NEW_NOTICE":
+      return <Description fontSize="small" />;
+    case "NEW_DYNAMIC_REPORT":
+    case "DYNAMIC_REPORT_SUBMITTED":
+      return <Assessment fontSize="small" />;
+    case "NEW_FORM": // NEW
+      return <DynamicForm fontSize="small" />;
+    default:
+      return <NotificationsNone fontSize="small" />;
+  }
+};
 
   const formatNotificationTime = (date) => {
     if (!date) return "";
@@ -264,12 +354,17 @@ case "NEW_NOTICE":
       label: "New Report",
       href: "/teacher/report/new",
       icon: <ChecklistRtl />,
+    },       {
+      label: "All Reports",
+      href: "/teacher/report/teacher-reports",
+      icon: <ChecklistRtl />,
     },
     {
       label: "My Tasks",
       href: "/teacher/tasks",
       icon: <Assignment />,
     },
+ 
     {
       label: "Notice",
       href: "/teacher/notice",
@@ -309,9 +404,14 @@ case "NEW_NOTICE":
       icon: <Description />,
     },
     {
-      label: "Forms",
+      label: " Dynamic Forms",
       href: "/admin/forms",
       icon: <DynamicForm />,
+    },
+    {
+      label: "Dynamic Reports",
+      href: "/admin/dynamic-reports",
+      icon: <Assessment />,
     },
   ];
 
@@ -321,11 +421,24 @@ case "NEW_NOTICE":
   const showFormsMenu =
     user.role !== "superadmin" && visibleForms.length > 0;
 
+  // NEW
+  const showReportsMenu =
+    user.role !== "superadmin" && visibleDynamicReports.length > 0;
+
   const goToForm = (slug) => {
     router.push(`/forms/${slug}`);
 
     setFormsMenuAnchor(null);
     setFormsDrawerOpen(false);
+    setDrawerOpen(false);
+  };
+
+  // NEW
+  const goToDynamicReport = (reportId) => {
+    router.push(`/reports/${reportId}`);
+
+    setReportsMenuAnchor(null);
+    setReportsDrawerOpen(false);
     setDrawerOpen(false);
   };
 
@@ -528,6 +641,93 @@ case "NEW_NOTICE":
                       primary={f.title}
                       primaryTypographyProps={{
                         fontSize: "0.85rem",
+                      }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {/* Dynamic Reports (NEW) */}
+
+        {showReportsMenu && (
+          <>
+            <ListItemButton
+              onClick={() => setReportsDrawerOpen((p) => !p)}
+              sx={{
+                mx: 1,
+                my: 0.35,
+                minHeight: 44,
+                borderRadius: 1.5,
+                color: "#202020",
+
+                "&:hover": {
+                  bgcolor: "rgba(23, 43, 143, 0.06)",
+                },
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: "rgba(23, 43, 143, 0.85)",
+                }}
+              >
+                <Assessment />
+              </ListItemIcon>
+
+              <ListItemText
+                primary="Reports"
+                primaryTypographyProps={{
+                  fontWeight: 500,
+                  fontSize: "0.9rem",
+                }}
+              />
+
+              {reportsDrawerOpen ? (
+                <ExpandLess fontSize="small" sx={{ color: BLUE }} />
+              ) : (
+                <ExpandMore fontSize="small" sx={{ color: BLUE }} />
+              )}
+            </ListItemButton>
+
+            <Collapse in={reportsDrawerOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {visibleDynamicReports.map((r) => (
+                  <ListItemButton
+                    key={r._id}
+                    onClick={() => goToDynamicReport(r._id)}
+                    sx={{
+                      pl: 5,
+                      mx: 1,
+                      my: 0.2,
+                      minHeight: 40,
+                      borderRadius: 1.5,
+                      color: "#333333",
+
+                      "&:hover": {
+                        bgcolor: "rgba(23, 43, 143, 0.06)",
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32, color: BLUE }}>
+                      <Assessment fontSize="small" />
+                    </ListItemIcon>
+
+                    <ListItemText
+                      primary={r.title}
+                      secondary={
+                        r.submittedToday
+                          ? "Submitted today"
+                          : r.dueToday
+                            ? "Due today"
+                            : null
+                      }
+                      primaryTypographyProps={{ fontSize: "0.85rem" }}
+                      secondaryTypographyProps={{
+                        fontSize: "0.68rem",
+                        color: r.submittedToday ? "success.main" : "error.main",
                       }}
                     />
                   </ListItemButton>
@@ -864,6 +1064,103 @@ case "NEW_NOTICE":
             </>
           )}
 
+          {/* DESKTOP DYNAMIC REPORTS (NEW) */}
+
+          {!isMobile && showReportsMenu && (
+            <>
+              <Box
+                onClick={(e) => setReportsMenuAnchor(e.currentTarget)}
+                sx={{
+                  position: "relative",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.4,
+                  px: 1.35,
+                  py: 2.05,
+                  mx: 0.15,
+                  fontSize: "0.87rem",
+                  fontWeight: 500,
+                  color: "#252525",
+                  whiteSpace: "nowrap",
+
+                  "&:hover": {
+                    bgcolor: "transparent",
+                    color: BLUE,
+                  },
+
+                  "&::after": {
+                    content: '""',
+                    position: "absolute",
+                    left: 8,
+                    right: 8,
+                    bottom: 0,
+                    height: 3,
+                    bgcolor: BLUE,
+                    transform: reportsMenuAnchor ? "scaleX(1)" : "scaleX(0)",
+                    transition: "transform 0.22s ease",
+                    borderRadius: "3px 3px 0 0",
+                  },
+
+                  "&:hover::after": {
+                    transform: "scaleX(1)",
+                  },
+                }}
+              >
+                Reports
+                {reportsMenuAnchor ? (
+                  <ExpandLess fontSize="small" sx={{ color: BLUE }} />
+                ) : (
+                  <ExpandMore fontSize="small" />
+                )}
+              </Box>
+
+              <Menu
+                anchorEl={reportsMenuAnchor}
+                open={!!reportsMenuAnchor}
+                onClose={() => setReportsMenuAnchor(null)}
+                PaperProps={{
+                  elevation: 4,
+                  sx: {
+                    mt: 1,
+                    minWidth: 230,
+                    borderRadius: 1.5,
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  },
+                }}
+              >
+                {visibleDynamicReports.map((r) => (
+                  <MenuItem
+                    key={r._id}
+                    onClick={() => goToDynamicReport(r._id)}
+                    sx={{
+                      fontSize: "0.87rem",
+                      "&:hover": {
+                        bgcolor: "rgba(23, 43, 143, 0.07)",
+                        color: BLUE,
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32, color: BLUE }}>
+                      <Assessment fontSize="small" />
+                    </ListItemIcon>
+                    <Box>
+                      <Typography fontSize="0.87rem">{r.title}</Typography>
+                      {(r.submittedToday || r.dueToday) && (
+                        <Typography
+                          fontSize="0.68rem"
+                          color={r.submittedToday ? "success.main" : "error.main"}
+                        >
+                          {r.submittedToday ? "Submitted today" : "Due today"}
+                        </Typography>
+                      )}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
+          )}
+
           {/* =====================================================
               NOTIFICATION BELL
           ===================================================== */}
@@ -963,22 +1260,90 @@ case "NEW_NOTICE":
                 </Typography>
               </Box>
 
-              {unreadCount > 0 && (
-                <Typography
-                  component="button"
-                  onClick={markAllNotificationsRead}
-                  sx={{
-                    border: 0,
-                    bgcolor: "transparent",
-                    color: BLUE,
-                    cursor: "pointer",
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
+              <Stack direction="row" spacing={0.3} alignItems="center">
+                {unreadCount > 0 && (
+                  <Typography
+                    component="button"
+                    onClick={markAllNotificationsRead}
+                    sx={{
+                      border: 0,
+                      bgcolor: "transparent",
+                      color: BLUE,
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      mr: 0.5,
+                    }}
+                  >
+                    Mark all read
+                  </Typography>
+                )}
+
+                <Popover
+                  open={!!prefsAnchor}
+                  anchorEl={prefsAnchor}
+                  onClose={handlePrefsClose}
+                  anchorOrigin={{
+                    vertical: "bottom",
+                    horizontal: "right",
+                  }}
+                  transformOrigin={{
+                    vertical: "top",
+                    horizontal: "right",
+                  }}
+                  PaperProps={{
+                    sx: {
+                      mt: 1,
+                      borderRadius: 2,
+                      minWidth: 240,
+                      border: "1px solid rgba(0,0,0,0.06)",
+                    },
                   }}
                 >
-                  Mark all read
-                </Typography>
-              )}
+                  <Box sx={{ p: 2 }}>
+                    <Typography
+                      fontWeight={800}
+                      fontSize="0.85rem"
+                      sx={{ mb: 1.2 }}
+                    >
+                      Mute notifications for
+                    </Typography>
+
+                    <Stack spacing={1}>
+                      {NOTIFICATION_CATEGORIES.map((c) => (
+                        <Stack
+                          key={c.key}
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                        >
+                          <Typography fontSize="0.83rem" color="#334155">
+                            {c.label}
+                          </Typography>
+                          <Switch
+                            size="small"
+                            checked={mutedTypes.includes(c.key)}
+                            onChange={() => toggleMute(c.key)}
+                          />
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Popover>
+
+                <IconButton
+                  size="small"
+                  onClick={handlePrefsOpen}
+                  sx={{
+                    color: BLUE,
+                    "&:hover": {
+                      bgcolor: "rgba(23, 43, 143, 0.06)",
+                    },
+                  }}
+                >
+                  <SettingsOutlined fontSize="small" />
+                </IconButton>
+              </Stack>
             </Box>
 
             {/* Notification list */}

@@ -24,6 +24,17 @@ import {
   Save,
 } from "@mui/icons-material";
 import api from "../lib/api";
+
+// NEW: default labels for the fixed (non-checklist) report fields — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFS = [
+  { key: "positiveObservations", fallback: "Major positive observations" },
+  { key: "hygieneLapses", fallback: "Cleanliness / hygiene lapses noted" },
+  { key: "maintenanceFollowUp", fallback: "Maintenance items needing follow-up action" },
+  { key: "urgentMatters", fallback: "Urgent Matters" },
+  { key: "signature", fallback: "Signature of Duty Officer" },
+  { key: "countersignedBy", fallback: "Countersigned by" },
+];
+
 const normalize = (t = {}) => ({
   sections: (t.sections || []).map((s, si) => ({
     key: s.key || `section_${si + 1}`,
@@ -41,9 +52,19 @@ const normalize = (t = {}) => ({
     options: Array.isArray(f.options) ? f.options : [],
     required: !!f.required,
   })),
+  // NEW: fixedFields normalization
+  fixedFields: FIXED_FIELD_DEFS.reduce((acc, { key, fallback }) => {
+    const source = t.fixedFields?.[key] || {};
+    acc[key] = {
+      label: source.label || fallback,
+      enabled: source.enabled === undefined ? true : !!source.enabled,
+    };
+    return acc;
+  }, {}),
 });
+
 export default function ReportFormatDialog({ open, onClose, onSaved }) {
-  const [draft, setDraft] = useState({ sections: [], customFields: [] });
+  const [draft, setDraft] = useState({ sections: [], customFields: [], fixedFields: {} });
   const [loading, setLoading] = useState(false),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
@@ -144,6 +165,17 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
       ...x,
       customFields: x.customFields.filter((_, j) => j !== i),
     }));
+
+  // NEW: update a single fixed field's label/enabled state
+  const updateFixedField = (key, patch) =>
+    setDraft((x) => ({
+      ...x,
+      fixedFields: {
+        ...x.fixedFields,
+        [key]: { ...x.fixedFields[key], ...patch },
+      },
+    }));
+
  const save = async () => {
   setError("");
   setMessage("");
@@ -176,6 +208,17 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
     )
   ) {
     return setError("Select fields need at least one option.");
+  }
+
+  // NEW: enabled fixed fields must still have a label
+  if (
+    FIXED_FIELD_DEFS.some(
+      ({ key }) =>
+        draft.fixedFields[key]?.enabled &&
+        !draft.fixedFields[key]?.label?.trim(),
+    )
+  ) {
+    return setError("Every enabled field below needs a label.");
   }
 
   try {
@@ -400,6 +443,49 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
                     )}
                   </Paper>
                 ))}
+              </Stack>
+            </Paper>
+
+            {/* NEW: Other Report Fields — Observations / Urgent Matters / Verification */}
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+              <Box mb={1}>
+                <Typography fontWeight={800}>Other Report Fields</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Rename or hide the Observations, Urgent Matters and Verification fields.
+                </Typography>
+              </Box>
+              <Stack spacing={1}>
+                {FIXED_FIELD_DEFS.map(({ key, fallback }) => {
+                  const field = draft.fixedFields[key] || { label: fallback, enabled: true };
+                  return (
+                    <Stack
+                      key={key}
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      alignItems={{ sm: "center" }}
+                    >
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Field label"
+                        value={field.label}
+                        disabled={!field.enabled}
+                        onChange={(e) =>
+                          updateFixedField(key, { label: e.target.value })
+                        }
+                      />
+                      <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
+                        <Checkbox
+                          checked={field.enabled}
+                          onChange={(e) =>
+                            updateFixedField(key, { enabled: e.target.checked })
+                          }
+                        />
+                        <Typography variant="caption">Show in reports</Typography>
+                      </Stack>
+                    </Stack>
+                  );
+                })}
               </Stack>
             </Paper>
           </Stack>

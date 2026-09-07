@@ -51,6 +51,11 @@ const sw = {
   border: "#CBD5E1",
 };
 
+// NEW: default label for the urgentMatters fixed field — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFAULTS = {
+  urgentMatters: "Urgent Matters",
+};
+
 function StatCard({ title, value, icon, color, lightColor }) {
   return (
     <Card
@@ -132,12 +137,20 @@ function TeacherDashboardInner() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const [reports, setReports] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [template, setTemplate] = useState(null); // NEW
+
+  // NEW: resolve label + enabled state for the urgentMatters fixed field, falling back to defaults.
+  const fixedFields = template?.fixedFields || {};
+  const fieldLabel = (key) => fixedFields[key]?.label || FIXED_FIELD_DEFAULTS[key];
+  const fieldEnabled = (key) => fixedFields[key]?.enabled !== false;
+
 useEffect(() => {
   const loadDashboard = async () => {
     try {
-      const [reportsRes, tasksRes] = await Promise.all([
+      const [reportsRes, tasksRes, templateRes] = await Promise.all([
         api.get("/reports/mine"),
         api.get("/tasks/mine"),
+        api.get("/reports/template"), // NEW
       ]);
 
       const reportsData = reportsRes?.data;
@@ -166,6 +179,8 @@ useEffect(() => {
                 ? tasksData.data.tasks
                 : []
       );
+
+      setTemplate(templateRes?.data || null); // NEW
     } catch (error) {
       console.error("Teacher dashboard load error:", error);
       setReports([]);
@@ -356,18 +371,21 @@ useEffect(() => {
                   >
                     CENTRE
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 800,
-                      color: sw.muted,
-                      fontSize: "0.7rem",
-                      py: 1,
-                      px: { xs: 1, sm: 2 },
-                      borderBottom: `1.5px solid ${sw.border}`,
-                    }}
-                  >
-                    URGENT
-                  </TableCell>
+                  {/* CHANGED: dynamic label + hide column if disabled */}
+                  {fieldEnabled("urgentMatters") && (
+                    <TableCell
+                      sx={{
+                        fontWeight: 800,
+                        color: sw.muted,
+                        fontSize: "0.7rem",
+                        py: 1,
+                        px: { xs: 1, sm: 2 },
+                        borderBottom: `1.5px solid ${sw.border}`,
+                      }}
+                    >
+                      {fieldLabel("urgentMatters").toUpperCase()}
+                    </TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -403,42 +421,45 @@ useEffect(() => {
                     >
                       {r.centreBatch || "—"}
                     </TableCell>
-                    <TableCell
-                      sx={{
-                        py: 1,
-                        px: { xs: 1, sm: 2 },
-                        borderBottom: `1px solid ${sw.border}`,
-                      }}
-                    >
-                      {r.urgentMatters ? (
-                        <Chip
-                          size="small"
-                          label="YES"
-                          sx={{
-                            bgcolor: sw.redLight,
-                            color: sw.red,
-                            fontWeight: 800,
-                            fontSize: "0.65rem",
-                            borderRadius: 1,
-                            height: 22,
-                            minWidth: 50,
-                          }}
-                        />
-                      ) : (
-                        <Typography
-                          fontSize="0.8rem"
-                          sx={{ color: sw.muted, fontWeight: 500 }}
-                        >
-                          —
-                        </Typography>
-                      )}
-                    </TableCell>
+                    {/* CHANGED: hide cell if urgentMatters disabled, to stay aligned with the header */}
+                    {fieldEnabled("urgentMatters") && (
+                      <TableCell
+                        sx={{
+                          py: 1,
+                          px: { xs: 1, sm: 2 },
+                          borderBottom: `1px solid ${sw.border}`,
+                        }}
+                      >
+                        {r.urgentMatters ? (
+                          <Chip
+                            size="small"
+                            label="YES"
+                            sx={{
+                              bgcolor: sw.redLight,
+                              color: sw.red,
+                              fontWeight: 800,
+                              fontSize: "0.65rem",
+                              borderRadius: 1,
+                              height: 22,
+                              minWidth: 50,
+                            }}
+                          />
+                        ) : (
+                          <Typography
+                            fontSize="0.8rem"
+                            sx={{ color: sw.muted, fontWeight: 500 }}
+                          >
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {reports.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={fieldEnabled("urgentMatters") ? 3 : 2}
                       align="center"
                       sx={{ py: 3, color: sw.muted }}
                     >

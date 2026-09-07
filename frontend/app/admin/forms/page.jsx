@@ -55,6 +55,8 @@ import {
   ArrowUpward,
   ArrowDownward,
   ListAlt,
+  NotificationsActive,
+  NotificationsOff,
 } from "@mui/icons-material";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
@@ -66,6 +68,7 @@ const EMPTY_FIELD = () => ({
   fieldType: "text",
   required: false,
   placeholder: "",
+  allowRemark: false,
 });
 
 const EMPTY_FORM = {
@@ -81,6 +84,7 @@ const EMPTY_FORM = {
   targetType: "all",
   targetUsers: [],
   isPublished: false,
+  notifyUsers: true,
 };
 
 const ROWS_PER_PAGE = 10;
@@ -91,7 +95,7 @@ const publicUrlFor = (slug) =>
 const qrUrlFor = (url) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&ecc=H&data=${encodeURIComponent(url)}`;
 
-const LOGO_SRC = "/sleepwell-logo.png"; // drop your logo in frontend/public/ under this name
+const LOGO_SRC = "/sleepwell-logo.png";
 
 const loadImage = (src, crossOrigin) =>
   new Promise((resolve, reject) => {
@@ -102,8 +106,6 @@ const loadImage = (src, crossOrigin) =>
     img.src = src;
   });
 
-// Draws the QR code onto a canvas and stamps the logo in the center with a
-// white rounded backdrop, so it stays scannable (ecc=H tolerates ~30% loss).
 const buildQrCompositeDataUrl = async (targetUrl, size = 500) => {
   const qrImg = await loadImage(
     `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&ecc=H&data=${encodeURIComponent(targetUrl)}`,
@@ -240,8 +242,6 @@ function AdminFormsInner() {
 
   useEffect(() => {
     loadForms({ page: 1 });
-    // Same picker the Notices/Tasks pages use. Swap for a broader "/users"
-    // endpoint if you want to target roles beyond teachers.
     api.get("/users/teachers").then((res) => setAllUsers(res.data || []));
   }, []);
 
@@ -277,7 +277,11 @@ function AdminFormsInner() {
       description: f.description || "",
       fields:
         f.fields?.length > 0
-          ? f.fields.map((fld) => ({ ...fld, _key: fld._id || Math.random().toString(36).slice(2) }))
+          ? f.fields.map((fld) => ({
+              ...fld,
+              _key: fld._id || Math.random().toString(36).slice(2),
+              allowRemark: !!fld.allowRemark,
+            }))
           : [EMPTY_FIELD()],
       theme: {
         primaryColor: f.theme?.primaryColor || "#7e22ce",
@@ -288,6 +292,7 @@ function AdminFormsInner() {
       targetType: f.targetType || "all",
       targetUsers: f.targetUsers || [],
       isPublished: !!f.isPublished,
+      notifyUsers: f.notifyUsers === undefined ? true : !!f.notifyUsers,
     });
     setFormError("");
     setFormOpen(true);
@@ -343,17 +348,19 @@ function AdminFormsInner() {
       const payload = {
         title: form.title,
         description: form.description,
-        fields: validFields.map(({ _id, label, fieldType, required, placeholder }) => ({
+        fields: validFields.map(({ _id, label, fieldType, required, placeholder, allowRemark }) => ({
           _id, // present only when editing an existing field
           label,
           fieldType,
           required,
           placeholder,
+          allowRemark,
         })),
         theme: form.theme,
         targetType: form.targetType,
         targetUsers: form.targetUsers.map((u) => u._id),
         isPublished: form.isPublished,
+        notifyUsers: form.notifyUsers,
       };
 
       if (editingId) {
@@ -522,6 +529,7 @@ function AdminFormsInner() {
                     <TableCell>Fields</TableCell>
                     <TableCell>Assigned to</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell>Notify</TableCell>
                     <TableCell>Responses</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -561,6 +569,15 @@ function AdminFormsInner() {
                       <TableCell>
                         <Tooltip title={f.isPublished ? "Link is live" : "Draft — link inactive"}>
                           <Switch size="small" checked={f.isPublished} onChange={() => togglePublish(f)} />
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        <Tooltip title={f.notifyUsers === false ? "Notifications off for this form" : "Notifications on"}>
+                          {f.notifyUsers === false ? (
+                            <NotificationsOff fontSize="small" sx={{ color: "text.disabled" }} />
+                          ) : (
+                            <NotificationsActive fontSize="small" sx={{ color: "#7e22ce" }} />
+                          )}
                         </Tooltip>
                       </TableCell>
                       <TableCell>
@@ -679,54 +696,75 @@ function AdminFormsInner() {
                   variant="outlined"
                   sx={{ p: 1.2, borderRadius: 2, borderColor: "#e2e8f0" }}
                 >
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
-                    <TextField
-                      label={`Field ${index + 1} label`}
-                      size="small"
-                      fullWidth
-                      value={field.label}
-                      onChange={(e) => updateField(index, { label: e.target.value })}
-                    />
-                    <FormControl size="small" sx={{ minWidth: 110 }}>
-                      <Select
-                        value={field.fieldType}
-                        onChange={(e) => updateField(index, { fieldType: e.target.value })}
-                      >
-                        <MenuItem value="text">Text</MenuItem>
-                        <MenuItem value="number">Number</MenuItem>
-                      </Select>
-                    </FormControl>
+                  <Stack spacing={1}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
+                      <TextField
+                        label={`Field ${index + 1} label`}
+                        size="small"
+                        fullWidth
+                        value={field.label}
+                        onChange={(e) => updateField(index, { label: e.target.value })}
+                      />
+                      <FormControl size="small" sx={{ minWidth: 130 }}>
+                        <Select
+                          value={field.fieldType}
+                          onChange={(e) => updateField(index, { fieldType: e.target.value })}
+                        >
+                          <MenuItem value="text">Text</MenuItem>
+                          <MenuItem value="number">Number</MenuItem>
+                          <MenuItem value="rating">Rating (1-5)</MenuItem>
+                          <MenuItem value="checkbox">Checkbox</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <FormControlLabel
+                        sx={{ mx: 0, whiteSpace: "nowrap" }}
+                        control={
+                          <Switch
+                            size="small"
+                            checked={field.required}
+                            onChange={(e) => updateField(index, { required: e.target.checked })}
+                          />
+                        }
+                        label="Required"
+                      />
+                      <Stack direction="row">
+                        <IconButton size="small" disabled={index === 0} onClick={() => moveField(index, -1)}>
+                          <ArrowUpward fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          disabled={index === form.fields.length - 1}
+                          onClick={() => moveField(index, 1)}
+                        >
+                          <ArrowDownward fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => removeField(index)}
+                          disabled={form.fields.length === 1}
+                          sx={{ color: "#dc2626" }}
+                        >
+                          <DeleteOutline fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Stack>
+
+                    {/* Allow remark — works alongside any field type, most useful with rating/checkbox */}
                     <FormControlLabel
-                      sx={{ mx: 0, whiteSpace: "nowrap" }}
+                      sx={{ mx: 0 }}
                       control={
                         <Switch
                           size="small"
-                          checked={field.required}
-                          onChange={(e) => updateField(index, { required: e.target.checked })}
+                          checked={!!field.allowRemark}
+                          onChange={(e) => updateField(index, { allowRemark: e.target.checked })}
                         />
                       }
-                      label="Required"
+                      label={
+                        <Typography variant="caption" color="text.secondary">
+                          Show an optional remark box with this field
+                        </Typography>
+                      }
                     />
-                    <Stack direction="row">
-                      <IconButton size="small" disabled={index === 0} onClick={() => moveField(index, -1)}>
-                        <ArrowUpward fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        disabled={index === form.fields.length - 1}
-                        onClick={() => moveField(index, 1)}
-                      >
-                        <ArrowDownward fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => removeField(index)}
-                        disabled={form.fields.length === 1}
-                        sx={{ color: "#dc2626" }}
-                      >
-                        <DeleteOutline fontSize="small" />
-                      </IconButton>
-                    </Stack>
                   </Stack>
                 </Paper>
               ))}
@@ -877,6 +915,25 @@ function AdminFormsInner() {
                 />
               }
               label={form.isPublished ? "Published — public link is live" : "Draft — link inactive"}
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.notifyUsers}
+                  onChange={(e) => setForm((p) => ({ ...p, notifyUsers: e.target.checked }))}
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2" fontWeight={600}>
+                    Notify users when published
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Sends a notification to the assigned users the moment this form goes live.
+                  </Typography>
+                </Box>
+              }
             />
           </Stack>
         </DialogContent>

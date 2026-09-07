@@ -60,6 +60,19 @@ const userSchema = new mongoose.Schema(
         },
       },
     },
+
+    // ==========================================
+    // NOTIFICATION PREFERENCES (per-category mute)
+    // Categories: "TASK" (tasks/messages), "NOTICE", "REPORT" (dynamic reports)
+    // ==========================================
+   notificationPreferences: {
+  mutedTypes: [
+    {
+      type: String,
+      enum: ["TASK", "NOTICE", "REPORT", "FORM"], 
+    },
+  ],
+},
   },
   {
     timestamps: true,
@@ -79,4 +92,3 @@ userSchema.methods.matchPassword = function (entered) {
 };
 
 module.exports = mongoose.model("User", userSchema);
-

@@ -1,5 +1,8 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
+
+const VALID_CATEGORIES = ["TASK", "NOTICE", "REPORT", "FORM"];
+
 // ======================================================
 // GET /api/notifications
 // Get current user's notifications
@@ -11,6 +14,7 @@ const getMyNotifications = async (req, res) => {
     })
       .populate("task", "title status")
       .populate("notice", "title subtitle type isActive")
+      .populate("form", "title slug")
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -114,6 +118,7 @@ const markAllAsRead = async (req, res) => {
     });
   }
 };
+
 const subscribeToPush = async (req, res) => {
   try {
     const subscription = req.body;
@@ -133,7 +138,9 @@ const subscribeToPush = async (req, res) => {
     console.error("subscribeToPush error:", err);
     res.status(500).json({ message: "Could not save push subscription" });
   }
-}; // ======================================================
+};
+
+// ======================================================
 // DELETE /api/notifications/:id
 // Delete current user's single notification
 // ======================================================
@@ -141,8 +148,6 @@ const deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Sirf wahi notification delete hogi
-    // jo currently logged-in user ki hai
     const notification = await Notification.findOneAndDelete({
       _id: id,
       recipient: req.user._id,
@@ -168,6 +173,44 @@ const deleteNotification = async (req, res) => {
     });
   }
 };
+
+// ======================================================
+// GET /api/notifications/preferences
+// Get current user's muted notification categories
+// ======================================================
+const getNotificationPreferences = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("notificationPreferences");
+    res.json({ mutedTypes: user?.notificationPreferences?.mutedTypes || [] });
+  } catch (err) {
+    console.error("getNotificationPreferences error:", err);
+    res.status(500).json({ message: "Could not load notification preferences" });
+  }
+};
+
+// ======================================================
+// PATCH /api/notifications/preferences
+// Update current user's muted notification categories
+// Body: { mutedTypes: ["TASK", "NOTICE", "REPORT", "FORM"] }
+// ======================================================
+const updateNotificationPreferences = async (req, res) => {
+  try {
+    const { mutedTypes } = req.body;
+    const clean = Array.isArray(mutedTypes)
+      ? [...new Set(mutedTypes.filter((t) => VALID_CATEGORIES.includes(t)))]
+      : [];
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $set: { "notificationPreferences.mutedTypes": clean },
+    });
+
+    res.json({ mutedTypes: clean });
+  } catch (err) {
+    console.error("updateNotificationPreferences error:", err);
+    res.status(500).json({ message: "Could not update notification preferences" });
+  }
+};
+
 module.exports = {
   getMyNotifications,
   getUnreadCount,
@@ -175,4 +218,6 @@ module.exports = {
   markAllAsRead,
   subscribeToPush,
   deleteNotification,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 };

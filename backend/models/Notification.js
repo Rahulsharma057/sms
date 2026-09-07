@@ -11,7 +11,15 @@ const notificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["NEW_TASK", "NEW_MESSAGE", "TASK_STATUS", "NEW_NOTICE"],
+      enum: [
+        "NEW_TASK",
+        "NEW_MESSAGE",
+        "TASK_STATUS",
+        "NEW_NOTICE",
+        "NEW_DYNAMIC_REPORT",
+        "DYNAMIC_REPORT_SUBMITTED",
+        "NEW_FORM", // NEW: a form was published / assigned to this user
+      ],
       required: true,
     },
 
@@ -36,6 +44,18 @@ const notificationSchema = new mongoose.Schema(
     notice: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Notice",
+      default: null,
+    },
+
+    dynamicReport: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DynamicReport",
+      default: null,
+    },
+
+    form: { // NEW
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FormTemplate",
       default: null,
     },
 

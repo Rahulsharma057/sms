@@ -126,6 +126,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/forms", require("./routes/formRoutes"));
 app.use("/api/notices", noticeRoutes);
+app.use("/api/dynamic-reports", require("./routes/dynamicReportRoutes"));
 /* =========================
   ERROR HANDLER
 ========================= */

@@ -313,7 +313,35 @@ const paginationStyles = {
     bgcolor: COLORS.primarySoft,
   },
 };
+// NEW: reads checklist sections from either the new `sections` array or legacy per-key fields.
+function getReportSections(report) {
+  if (Array.isArray(report?.sections) && report.sections.length) {
+    return report.sections.map((section, index) => ({
+      key: section?.key || `section_${index + 1}`,
+      title: section?.title || `Section ${index + 1}`,
+      items: Array.isArray(section?.items) ? section.items : [],
+    }));
+  }
+  const LEGACY = [
+    { key: "morningChecks", title: "Readiness Check" },
+    { key: "middayChecks", title: "Assets Inspection" },
+    { key: "afternoonChecks", title: "Maintenance Round" },
+  ];
+  return LEGACY.map((section) => ({
+    ...section,
+    items: Array.isArray(report?.[section.key]) ? report[section.key] : [],
+  }));
+}
 
+// NEW: default labels for fixed fields — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFAULTS = {
+  positiveObservations: "Major Positive Observations",
+  hygieneLapses: "Cleanliness / Hygiene Lapses",
+  maintenanceFollowUp: "Maintenance Follow-up",
+  urgentMatters: "Urgent Matters",
+  signature: "Signature",
+  countersignedBy: "Countersigned By",
+};
 /* =========================================================
    MAIN DASHBOARD
 ========================================================= */
@@ -339,7 +367,12 @@ function AdminDashboardInner() {
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [template, setTemplate] = useState(null); // NEW
 
+  // NEW: resolve label + enabled state for a fixed field, falling back to defaults.
+  const fixedFields = template?.fixedFields || {};
+  const fieldLabel = (key) => fixedFields[key]?.label || FIXED_FIELD_DEFAULTS[key];
+  const fieldEnabled = (key) => fixedFields[key]?.enabled !== false;
   /* =======================================================
      LOAD REPORTS
   ======================================================= */
@@ -408,6 +441,11 @@ function AdminDashboardInner() {
       .get("/users/teachers")
       .then((res) => setTeachers(res.data || []))
       .catch((err) => console.error("Error loading teachers:", err));
+
+    api // NEW
+      .get("/reports/template")
+      .then((res) => setTemplate(res.data))
+      .catch((err) => console.error("Error loading report template:", err));
   }, []);
 
   /* =======================================================
@@ -1915,28 +1953,11 @@ bgcolor:"rgba(37, 39, 150, 0.97)",
             CHECKLIST PROGRESS
         ================================================= */}
 
-        {(() => {
-          const checklistSections = [
-            {
-              key: "morningChecks",
-              title: "Readiness Check",
-            },
-            {
-              key: "middayChecks",
-              title: "Assets Inspection",
-            },
-            {
-              key: "afternoonChecks",
-              title: " Maintenance Round",
-            },
-          ];
+               {(() => {
+          // CHANGED: uses new `sections` format when present, falls back to legacy fields
+          const checklistSections = getReportSections(selectedReport);
 
-          const allChecks = checklistSections.flatMap(
-            (section) =>
-              Array.isArray(selectedReport[section.key])
-                ? selectedReport[section.key]
-                : []
-          );
+          const allChecks = checklistSections.flatMap((section) => section.items || []);
 
           const totalChecks = allChecks.length;
 
@@ -2031,11 +2052,7 @@ bgcolor:"rgba(37, 39, 150, 0.97)",
               ================================================= */}
 
               {checklistSections.map((section, sectionIndex) => {
-                const checks = Array.isArray(
-                  selectedReport[section.key]
-                )
-                  ? selectedReport[section.key]
-                  : [];
+                               const checks = section.items || [];
 
                 return (
                   <Box key={section.key}>

@@ -24,6 +24,16 @@ const BASE_SECTIONS = [
   { title: "Afternoon maintenance round", key: "afternoonChecks" },
 ];
 
+// NEW: default labels for fixed fields — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFAULTS = {
+  positiveObservations: "Major positive observations",
+  hygieneLapses: "Cleanliness / hygiene lapses noted",
+  maintenanceFollowUp: "Maintenance items needing follow-up action",
+  urgentMatters: "Urgent Matters",
+  signature: "Signature of Duty Officer",
+  countersignedBy: "Countersigned by",
+};
+
 function getSections(report) {
   if (Array.isArray(report?.sections) && report.sections.length) {
     return report.sections.map((section, index) => ({
@@ -69,17 +79,21 @@ export default function ReportViewPage() {
   const router = useRouter();
 
   const [report, setReport] = useState(null);
+  const [template, setTemplate] = useState(null); // NEW
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
 
-    api
-      .get(`/reports/${id}`)
-      .then((res) => {
-        const data = res?.data?.report || res?.data?.data?.report || res?.data?.data || res?.data;
+    Promise.all([
+      api.get(`/reports/${id}`),
+      api.get("/reports/template"), // NEW
+    ])
+      .then(([reportRes, templateRes]) => {
+        const data = reportRes?.data?.report || reportRes?.data?.data?.report || reportRes?.data?.data || reportRes?.data;
         setReport(data);
+        setTemplate(templateRes?.data || null);
       })
       .catch((err) => setError(err?.response?.data?.message || "Could not load report."))
       .finally(() => setLoading(false));
@@ -87,6 +101,11 @@ export default function ReportViewPage() {
 
   const sections = useMemo(() => getSections(report), [report]);
   const customFields = Array.isArray(report?.customFields) ? report.customFields : [];
+
+  // NEW: resolve label + enabled state for a fixed field, falling back to defaults.
+  const fixedFields = template?.fixedFields || {};
+  const fieldLabel = (key) => fixedFields[key]?.label || FIXED_FIELD_DEFAULTS[key];
+  const fieldEnabled = (key) => fixedFields[key]?.enabled !== false;
 
   if (loading) {
     return (
@@ -248,43 +267,58 @@ export default function ReportViewPage() {
           </Paper>
         )}
 
+        {/* CHANGED: dynamic labels + hide disabled fields */}
         <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
           <Typography fontWeight={800} color="#6b21a8" mb={1.5}>Summary of Key Observations</Typography>
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Major positive observations</Typography>
-              <Typography>{displayValue(report.positiveObservations)}</Typography>
-            </Box>
-            <Divider />
-            <Box>
-              <Typography variant="caption" color="text.secondary">Cleanliness / hygiene lapses noted</Typography>
-              <Typography>{displayValue(report.hygieneLapses)}</Typography>
-            </Box>
-            <Divider />
-            <Box>
-              <Typography variant="caption" color="text.secondary">Maintenance items needing follow-up action</Typography>
-              <Typography>{displayValue(report.maintenanceFollowUp)}</Typography>
-            </Box>
+          <Stack spacing={1.5} divider={<Divider />}>
+            {fieldEnabled("positiveObservations") && (
+              <Box>
+                <Typography variant="caption" color="text.secondary">{fieldLabel("positiveObservations")}</Typography>
+                <Typography>{displayValue(report.positiveObservations)}</Typography>
+              </Box>
+            )}
+            {fieldEnabled("hygieneLapses") && (
+              <Box>
+                <Typography variant="caption" color="text.secondary">{fieldLabel("hygieneLapses")}</Typography>
+                <Typography>{displayValue(report.hygieneLapses)}</Typography>
+              </Box>
+            )}
+            {fieldEnabled("maintenanceFollowUp") && (
+              <Box>
+                <Typography variant="caption" color="text.secondary">{fieldLabel("maintenanceFollowUp")}</Typography>
+                <Typography>{displayValue(report.maintenanceFollowUp)}</Typography>
+              </Box>
+            )}
           </Stack>
         </Paper>
 
-        <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid #fecaca", borderRadius: 2.5 }}>
-          <Typography fontWeight={800} color="#b91c1c" mb={0.5}>Urgent Matters</Typography>
-          <Typography>{displayValue(report.urgentMatters)}</Typography>
-        </Paper>
+        {/* CHANGED: dynamic label + hide if disabled */}
+        {fieldEnabled("urgentMatters") && (
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid #fecaca", borderRadius: 2.5 }}>
+            <Typography fontWeight={800} color="#b91c1c" mb={0.5}>{fieldLabel("urgentMatters")}</Typography>
+            <Typography>{displayValue(report.urgentMatters)}</Typography>
+          </Paper>
+        )}
 
-        <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
-          <Grid container spacing={1.8}>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary">Signature of Duty Officer</Typography>
-              <Typography fontWeight={600}>{displayValue(report.signature)}</Typography>
+        {/* CHANGED: dynamic labels + hide individually if disabled */}
+        {(fieldEnabled("signature") || fieldEnabled("countersignedBy")) && (
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
+            <Grid container spacing={1.8}>
+              {fieldEnabled("signature") && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">{fieldLabel("signature")}</Typography>
+                  <Typography fontWeight={600}>{displayValue(report.signature)}</Typography>
+                </Grid>
+              )}
+              {fieldEnabled("countersignedBy") && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">{fieldLabel("countersignedBy")}</Typography>
+                  <Typography fontWeight={600}>{displayValue(report.countersignedBy)}</Typography>
+                </Grid>
+              )}
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary">Countersigned by</Typography>
-              <Typography fontWeight={600}>{displayValue(report.countersignedBy)}</Typography>
-            </Grid>
-          </Grid>
-        </Paper>
+          </Paper>
+        )}
 
         <Button startIcon={<ArrowBack />} onClick={() => router.push("/teacher/dashboard")} sx={{ alignSelf: "flex-start" }}>
           Back to Dashboard

@@ -64,6 +64,16 @@ import ReportFormatDialog from "../../../components/ReportFormatDialog";
 
 const getToday = () => new Date().toISOString().slice(0, 10);
 
+// NEW: default labels for fixed fields — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFAULTS = {
+  positiveObservations: "Major positive observations",
+  hygieneLapses: "Cleanliness / hygiene lapses noted",
+  maintenanceFollowUp: "Maintenance items needing follow-up action",
+  urgentMatters: "Urgent Matters",
+  signature: "Signature of Duty Officer",
+  countersignedBy: "Countersigned by",
+};
+
 const CHECKLIST_SECTIONS = [
   {
     key: "morningChecks",
@@ -577,7 +587,7 @@ function AllReportsInner() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [copyToast, setCopyToast] = useState("");
   const [viewMode, setViewMode] = useState("table");
-
+  const [template, setTemplate] = useState(null);
   const [fromDate, setFromDate] = useState(getToday());
   const [toDate, setToDate] = useState(getToday());
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -594,6 +604,12 @@ function AllReportsInner() {
   const [editReport, setEditReport] = useState(null);
   const [savingReport, setSavingReport] = useState(false);
   const [formatDialogOpen, setFormatDialogOpen] = useState(false);
+
+  // NEW: resolve label + enabled state for a fixed field, falling back to defaults.
+  const fixedFields = template?.fixedFields || {};
+  const fieldLabel = (key) => fixedFields[key]?.label || FIXED_FIELD_DEFAULTS[key];
+  const fieldEnabled = (key) => fixedFields[key]?.enabled !== false;
+
   /* =====================================================
      LOAD REPORTS
      FUNCTIONALITY UNCHANGED
@@ -637,8 +653,17 @@ function AllReportsInner() {
       .finally(() => setLoading(false));
   };
 
+  // CHANGED: now stores the template so labels can be applied dynamically
+  const loadTemplate = () => {
+    api
+      .get("/reports/template")
+      .then((res) => setTemplate(res.data))
+      .catch((err) => console.error("loadTemplate error:", err));
+  };
+
   useEffect(() => {
     api.get("/users/teachers").then((res) => setTeachers(res.data));
+    loadTemplate(); // NEW
 
     loadReports({
       from: fromDate,
@@ -2708,22 +2733,29 @@ function AllReportsInner() {
                     </SectionHeading>
 
                     <Stack spacing={1}>
-                      <ObservationRow
-                        label="Major positive observations"
-                        value={selectedReport.positiveObservations}
-                      />
-                      <ObservationRow
-                        label="Cleanliness / hygiene lapses noted"
-                        value={selectedReport.hygieneLapses}
-                      />
-                      <ObservationRow
-                        label="Maintenance items needing follow-up action"
-                        value={selectedReport.maintenanceFollowUp}
-                      />
+                      {fieldEnabled("positiveObservations") && (
+                        <ObservationRow
+                          label={fieldLabel("positiveObservations")}
+                          value={selectedReport.positiveObservations}
+                        />
+                      )}
+                      {fieldEnabled("hygieneLapses") && (
+                        <ObservationRow
+                          label={fieldLabel("hygieneLapses")}
+                          value={selectedReport.hygieneLapses}
+                        />
+                      )}
+                      {fieldEnabled("maintenanceFollowUp") && (
+                        <ObservationRow
+                          label={fieldLabel("maintenanceFollowUp")}
+                          value={selectedReport.maintenanceFollowUp}
+                        />
+                      )}
                     </Stack>
                   </Paper>
 
                   {/* URGENT MATTERS */}
+                  {fieldEnabled("urgentMatters") && (
                   <Box
                     sx={{
                       border: "1.5px solid",
@@ -2763,7 +2795,7 @@ function AllReportsInner() {
                               : "#0F172A",
                           }}
                         >
-                          04&nbsp;&nbsp;Urgent Matters
+                          04&nbsp;&nbsp;{fieldLabel("urgentMatters")}
                         </Typography>
 
                         <Typography
@@ -2782,6 +2814,7 @@ function AllReportsInner() {
                       </Box>
                     </Stack>
                   </Box>
+                  )}
 
                   {/* ADDITIONAL FIELDS */}
                   {Array.isArray(selectedReport.customFields) &&
@@ -2833,18 +2866,22 @@ function AllReportsInner() {
                     <SectionHeading>05&nbsp;&nbsp;Verification</SectionHeading>
 
                     <Grid container spacing={1.25}>
-                      <Grid item xs={12} sm={6}>
-                        <InfoValue
-                          label="SIGNATURE OF DUTY OFFICER"
-                          value={selectedReport.signature || "-"}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <InfoValue
-                          label="COUNTERSIGNED BY"
-                          value={selectedReport.countersignedBy || "-"}
-                        />
-                      </Grid>
+                      {fieldEnabled("signature") && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoValue
+                            label={fieldLabel("signature").toUpperCase()}
+                            value={selectedReport.signature || "-"}
+                          />
+                        </Grid>
+                      )}
+                      {fieldEnabled("countersignedBy") && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoValue
+                            label={fieldLabel("countersignedBy").toUpperCase()}
+                            value={selectedReport.countersignedBy || "-"}
+                          />
+                        </Grid>
+                      )}
                     </Grid>
                   </Paper>
 
@@ -3553,7 +3590,7 @@ function AllReportsInner() {
                         multiline
                         minRows={2}
                         size="small"
-                        label="Major positive observations"
+                        label={fieldLabel("positiveObservations")}
                         value={editReport.positiveObservations}
                         onChange={(e) =>
                           updateEditField(
@@ -3568,7 +3605,7 @@ function AllReportsInner() {
                         multiline
                         minRows={2}
                         size="small"
-                        label="Cleanliness / hygiene lapses"
+                        label={fieldLabel("hygieneLapses")}
                         value={editReport.hygieneLapses}
                         onChange={(e) =>
                           updateEditField("hygieneLapses", e.target.value)
@@ -3580,7 +3617,7 @@ function AllReportsInner() {
                         multiline
                         minRows={2}
                         size="small"
-                        label="Maintenance follow-up"
+                        label={fieldLabel("maintenanceFollowUp")}
                         value={editReport.maintenanceFollowUp}
                         onChange={(e) =>
                           updateEditField("maintenanceFollowUp", e.target.value)
@@ -3606,7 +3643,7 @@ function AllReportsInner() {
                     }}
                   >
                     <SectionHeading>
-                      04&nbsp;&nbsp;Urgent Matters
+                      04&nbsp;&nbsp;{fieldLabel("urgentMatters")}
                     </SectionHeading>
 
                     <TextField
@@ -3614,7 +3651,7 @@ function AllReportsInner() {
                       multiline
                       minRows={3}
                       size="small"
-                      label="Urgent matters"
+                      label={fieldLabel("urgentMatters")}
                       value={editReport.urgentMatters}
                       onChange={(e) =>
                         updateEditField("urgentMatters", e.target.value)
@@ -3645,7 +3682,7 @@ function AllReportsInner() {
                         <TextField
                           fullWidth
                           size="small"
-                          label="Signature of Duty Officer"
+                          label={fieldLabel("signature")}
                           value={editReport.signature}
                           onChange={(e) =>
                             updateEditField("signature", e.target.value)
@@ -3657,7 +3694,7 @@ function AllReportsInner() {
                         <TextField
                           fullWidth
                           size="small"
-                          label="Countersigned by"
+                          label={fieldLabel("countersignedBy")}
                           value={editReport.countersignedBy}
                           onChange={(e) =>
                             updateEditField("countersignedBy", e.target.value)

@@ -6,7 +6,9 @@ const {
   markAsRead,
   markAllAsRead,
   subscribeToPush,
- deleteNotification,  
+  deleteNotification,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 } = require("../controllers/notificationController");
 
 const { protect } = require("../middleware/auth");
@@ -22,6 +24,10 @@ router.get("/", getMyNotifications);
 // Get unread notification count
 router.get("/unread-count", getUnreadCount);
 
+// Get / update muted notification categories (TASK / NOTICE / REPORT)
+router.get("/preferences", getNotificationPreferences);
+router.patch("/preferences", updateNotificationPreferences);
+
 // Mark all notifications as read
 router.patch("/read-all", markAllAsRead);
 
@@ -29,7 +35,7 @@ router.patch("/read-all", markAllAsRead);
 router.patch("/:id/read", markAsRead);
 
 // Delete single notification
-router.delete("/:id",  deleteNotification); // ✅ ADD
+router.delete("/:id", deleteNotification);
 
 // Push subscription
 router.post("/push/subscribe", subscribeToPush);

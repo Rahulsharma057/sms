@@ -4,9 +4,15 @@ const crypto = require("crypto");
 const fieldSchema = new mongoose.Schema(
   {
     label: { type: String, required: true, trim: true },
-    fieldType: { type: String, enum: ["text", "number"], default: "text" },
+    fieldType: {
+      type: String,
+      enum: ["text", "number", "rating", "checkbox"],
+      default: "text",
+    },
     required: { type: Boolean, default: false },
     placeholder: { type: String, default: "" },
+    // when true, the public form shows an extra optional remark box next to this field
+    allowRemark: { type: Boolean, default: false },
     order: { type: Number, default: 0 },
   },
   { _id: true }
@@ -34,6 +40,9 @@ const formTemplateSchema = new mongoose.Schema(
     // who sees it inside the portal (dashboard / sidebar)
     targetType: { type: String, enum: ["all", "specific"], default: "all" },
     targetUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // whether publishing/assigning this form should notify recipients
+    notifyUsers: { type: Boolean, default: true },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   },

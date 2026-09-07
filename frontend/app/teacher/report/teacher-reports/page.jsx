@@ -6,7 +6,7 @@ import {
   Alert, Box, Button, Chip, CircularProgress, Divider, Paper,
   Stack, TextField, Typography,
 } from "@mui/material";
-import { CalendarMonth, Description, Visibility, FilterAltOff } from "@mui/icons-material";
+import { CalendarMonth, Description, Visibility, FilterAltOff, Assessment } from "@mui/icons-material";
 import ProtectedRoute from "../../../../components/ProtectedRoute";
 import Navbar from "../../../../components/Navbar";
 import api from "../../../../lib/api";
@@ -31,6 +31,7 @@ const getSections = (report) => {
 function ReportsPageInner() {
   const router = useRouter();
   const [reports, setReports] = useState([]);
+  const [dynamicEntries, setDynamicEntries] = useState([]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -42,8 +43,12 @@ function ReportsPageInner() {
       const params = {};
       if (nextFrom) params.from = nextFrom;
       if (nextTo) params.to = nextTo;
-      const res = await api.get("/reports/mine", { params });
-      setReports(res?.data?.reports || res?.data || []);
+      const [regularRes, dynamicRes] = await Promise.all([
+        api.get("/reports/mine", { params }),
+        api.get("/dynamic-reports/mine").catch(() => ({ data: { entries: [] } })),
+      ]);
+      setReports(regularRes?.data?.reports || regularRes?.data || []);
+      setDynamicEntries(dynamicRes?.data?.entries || []);
     } catch (err) {
       setError(err?.response?.data?.message || "Could not load your reports.");
     } finally { setLoading(false); }
@@ -52,6 +57,14 @@ function ReportsPageInner() {
   useEffect(() => { load(); }, []);
 
   const adminRemarkCount = useMemo(() => reports.reduce((sum, report) => sum + getSections(report).reduce((n, section) => n + (section.items || []).filter((item) => item.adminRemark).length, 0), 0), [reports]);
+
+  const combinedList = useMemo(() => {
+    const regular = reports.map((r) => ({ type: "regular", date: r.date, data: r }));
+    const dynamic = dynamicEntries
+      .filter((e) => (!from || e.date >= from) && (!to || e.date <= to))
+      .map((e) => ({ type: "dynamic", date: e.date, data: e }));
+    return [...regular, ...dynamic].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [reports, dynamicEntries, from, to]);
 
   const reset = () => { setFrom(""); setTo(""); load("", ""); };
 
@@ -66,7 +79,7 @@ function ReportsPageInner() {
                 <Stack direction="row" spacing={1} alignItems="center"><Description sx={{ color: "#7e22ce" }} /><Typography fontWeight={800} fontSize="1.25rem">My Daily Reports</Typography></Stack>
                 <Typography variant="body2" color="text.secondary" mt={0.5}>Date-wise submitted reports, including admin remarks and follow-up.</Typography>
               </Box>
-              <Chip icon={<CalendarMonth />} label={`${reports.length} report${reports.length === 1 ? "" : "s"}`} />
+              <Chip icon={<CalendarMonth />} label={`${combinedList.length} report${combinedList.length === 1 ? "" : "s"}`} />
             </Stack>
           </Paper>
 
@@ -79,16 +92,45 @@ function ReportsPageInner() {
             </Stack>
           </Paper>
 
-          {adminRemarkCount > 0 && <Alert severity="info">You have <b>{adminRemarkCount}</b> admin remark{adminRemarkCount === 1 ? "" : "s"} across the displayed reports. Open a report to read the complete remarks.</Alert>}
+          {adminRemarkCount > 0 && <Alert severity="info">You have <b>{adminRemarkCount}</b> admin remark{adminRemarkCount === 1 ? "" : "s"} across your daily reports. Open a report to read the complete remarks.</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
 
-          {loading ? <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box> : reports.length === 0 ? (
+          {loading ? <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box> : combinedList.length === 0 ? (
             <Paper elevation={0} sx={{ p: 5, textAlign: "center", border: "1px dashed #cbd5e1", borderRadius: 3 }}>
               <Description sx={{ fontSize: 42, color: "#94a3b8" }} /><Typography fontWeight={800} mt={1}>No reports found</Typography><Typography variant="body2" color="text.secondary">Try another date range.</Typography>
             </Paper>
           ) : (
             <Stack spacing={1.2}>
-              {reports.map((report) => {
+              {combinedList.map((item) => {
+                if (item.type === "dynamic") {
+                  const entry = item.data;
+                  return (
+                    <Paper key={`dyn-${entry._id}`} elevation={0} sx={{ p: { xs: 1.5, sm: 2 }, border: "1px solid #e9d8fd", borderRadius: 2.5, bgcolor: "#faf5ff" }}>
+                      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.3}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Stack direction="row" spacing={0.8} alignItems="center">
+                            <Typography fontWeight={800}>{entry.date}</Typography>
+                            <Chip size="small" icon={<Assessment sx={{ fontSize: "14px !important" }} />} label="Dynamic Report" sx={{ bgcolor: "#ede9fe", color: "#6d28d9", fontWeight: 700 }} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" noWrap>
+                            {entry.report?.title || "Report"}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          startIcon={<Visibility />}
+                          onClick={() => entry.report?._id && router.push(`/reports/${entry.report._id}`)}
+                          disabled={!entry.report?._id}
+                          sx={{ textTransform: "none", flexShrink: 0 }}
+                        >
+                          View Report
+                        </Button>
+                      </Stack>
+                    </Paper>
+                  );
+                }
+
+                const report = item.data;
                 const sections = getSections(report);
                 const items = sections.flatMap((s) => s.items || []);
                 const completed = items.filter((i) => i.checked).length;

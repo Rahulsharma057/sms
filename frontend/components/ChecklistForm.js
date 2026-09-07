@@ -16,6 +16,16 @@ const getToday = () => {
   return new Date(now.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
 };
 
+// NEW: default labels for fixed fields — must match backend DEFAULT_FIXED_FIELDS.
+const FIXED_FIELD_DEFAULTS = {
+  positiveObservations: "Major positive observations",
+  hygieneLapses: "Cleanliness / hygiene lapses",
+  maintenanceFollowUp: "Maintenance follow-up",
+  urgentMatters: "Urgent matters",
+  signature: "Signature of Duty Officer",
+  countersignedBy: "Countersigned by",
+};
+
 const normalizeSections = (sections = []) => sections.map((s, si) => ({
   key: s?.key || `section_${si + 1}`,
   title: s?.title || `Section ${si + 1}`,
@@ -44,7 +54,6 @@ const createForm = (name) => ({
   countersignedBy: "",
 });
 
-const required = ["dutyOfficerName", "positiveObservations", "hygieneLapses", "maintenanceFollowUp", "urgentMatters", "signature", "countersignedBy"];
 const draftKey = (date) => `dutyChecklistDraft_${date}`;
 
 export default function ChecklistForm() {
@@ -102,13 +111,27 @@ export default function ChecklistForm() {
     return () => clearTimeout(timer.current);
   }, [form, sections, todayReport]);
 
+  // NEW: resolve label + enabled state for a fixed field, falling back to defaults.
+  const fixedFields = template?.fixedFields || {};
+  const fieldLabel = (key) => fixedFields[key]?.label || FIXED_FIELD_DEFAULTS[key];
+  const fieldEnabled = (key) => fixedFields[key]?.enabled !== false;
+
+  // CHANGED: required list is now dynamic — disabled fixed fields are not required.
+  const required = useMemo(() => {
+    const base = ["dutyOfficerName"];
+    Object.keys(FIXED_FIELD_DEFAULTS).forEach((key) => {
+      if (fieldEnabled(key)) base.push(key);
+    });
+    return base;
+  }, [template]);
+
   const allItems = useMemo(() => sections.flatMap((s) => s.items || []), [sections]);
   const completed = allItems.filter((i) => i.checked).length;
   const total = allItems.length;
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const errors = useMemo(() => touched
     ? Object.fromEntries(required.filter((k) => !String(form[k] ?? "").trim()).map((k) => [k, "This field is required"]))
-    : {}, [form, touched]);
+    : {}, [form, touched, required]);
 
   const updateForm = (key, value) => { setForm((p) => ({ ...p, [key]: value })); setError(""); };
   const updateItem = (sectionIndex, itemIndex, patch) => {
@@ -220,23 +243,39 @@ export default function ChecklistForm() {
           </Stack>
         </Paper>
 
+        {/* CHANGED: labels now come from template.fixedFields (fallback to defaults), disabled fields are hidden */}
         <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.3 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
           <Typography fontWeight={800} color="#6b21a8" mb={1.5}>Summary & Follow-up</Typography>
           <Stack spacing={1.4}>
-            <TextField fullWidth multiline minRows={2} label="Major positive observations" required value={form.positiveObservations} onChange={(e) => updateForm("positiveObservations", e.target.value)} error={!!errors.positiveObservations} helperText={errors.positiveObservations} />
-            <TextField fullWidth multiline minRows={2} label="Cleanliness / hygiene lapses" required value={form.hygieneLapses} onChange={(e) => updateForm("hygieneLapses", e.target.value)} error={!!errors.hygieneLapses} helperText={errors.hygieneLapses} />
-            <TextField fullWidth multiline minRows={2} label="Maintenance follow-up" required value={form.maintenanceFollowUp} onChange={(e) => updateForm("maintenanceFollowUp", e.target.value)} error={!!errors.maintenanceFollowUp} helperText={errors.maintenanceFollowUp} />
-            <TextField fullWidth multiline minRows={2} label="Urgent matters" required value={form.urgentMatters} onChange={(e) => updateForm("urgentMatters", e.target.value)} error={!!errors.urgentMatters} helperText={errors.urgentMatters || "Write None if there are no urgent matters."} />
+            {fieldEnabled("positiveObservations") && (
+              <TextField fullWidth multiline minRows={2} label={fieldLabel("positiveObservations")} required value={form.positiveObservations} onChange={(e) => updateForm("positiveObservations", e.target.value)} error={!!errors.positiveObservations} helperText={errors.positiveObservations} />
+            )}
+            {fieldEnabled("hygieneLapses") && (
+              <TextField fullWidth multiline minRows={2} label={fieldLabel("hygieneLapses")} required value={form.hygieneLapses} onChange={(e) => updateForm("hygieneLapses", e.target.value)} error={!!errors.hygieneLapses} helperText={errors.hygieneLapses} />
+            )}
+            {fieldEnabled("maintenanceFollowUp") && (
+              <TextField fullWidth multiline minRows={2} label={fieldLabel("maintenanceFollowUp")} required value={form.maintenanceFollowUp} onChange={(e) => updateForm("maintenanceFollowUp", e.target.value)} error={!!errors.maintenanceFollowUp} helperText={errors.maintenanceFollowUp} />
+            )}
+            {fieldEnabled("urgentMatters") && (
+              <TextField fullWidth multiline minRows={2} label={fieldLabel("urgentMatters")} required value={form.urgentMatters} onChange={(e) => updateForm("urgentMatters", e.target.value)} error={!!errors.urgentMatters} helperText={errors.urgentMatters || "Write None if there are no urgent matters."} />
+            )}
           </Stack>
         </Paper>
 
-        <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.3 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
-          <Typography fontWeight={800} color="#6b21a8" mb={1.5}>Verification</Typography>
-          <Grid container spacing={1.5}>
-            <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Signature of Duty Officer" required value={form.signature} onChange={(e) => updateForm("signature", e.target.value)} error={!!errors.signature} helperText={errors.signature} /></Grid>
-            <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Countersigned by" required value={form.countersignedBy} onChange={(e) => updateForm("countersignedBy", e.target.value)} error={!!errors.countersignedBy} helperText={errors.countersignedBy} /></Grid>
-          </Grid>
-        </Paper>
+        {/* CHANGED: same dynamic label/enabled treatment for Verification fields */}
+        {(fieldEnabled("signature") || fieldEnabled("countersignedBy")) && (
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.3 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
+            <Typography fontWeight={800} color="#6b21a8" mb={1.5}>Verification</Typography>
+            <Grid container spacing={1.5}>
+              {fieldEnabled("signature") && (
+                <Grid item xs={12} sm={6}><TextField fullWidth size="small" label={fieldLabel("signature")} required value={form.signature} onChange={(e) => updateForm("signature", e.target.value)} error={!!errors.signature} helperText={errors.signature} /></Grid>
+              )}
+              {fieldEnabled("countersignedBy") && (
+                <Grid item xs={12} sm={6}><TextField fullWidth size="small" label={fieldLabel("countersignedBy")} required value={form.countersignedBy} onChange={(e) => updateForm("countersignedBy", e.target.value)} error={!!errors.countersignedBy} helperText={errors.countersignedBy} /></Grid>
+              )}
+            </Grid>
+          </Paper>
+        )}
 
         <Paper elevation={3} sx={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 1200, borderRadius: 0, borderTop: "1px solid #e2e8f0", bgcolor: "rgba(255,255,255,.96)", backdropFilter: "blur(10px)" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ maxWidth: 920, mx: "auto", p: 1.1, px: { xs: 1.2, sm: 3 } }}>
