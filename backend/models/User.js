@@ -68,7 +68,7 @@ const userSchema = new mongoose.Schema(
    notificationPreferences: {
   mutedTypes: [
     {
-      type: String,
+    type: String,
       enum: ["TASK", "NOTICE", "REPORT", "FORM"], 
     },
   ],

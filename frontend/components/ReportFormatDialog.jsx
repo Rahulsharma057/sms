@@ -29,7 +29,10 @@ import api from "../lib/api";
 const FIXED_FIELD_DEFS = [
   { key: "positiveObservations", fallback: "Major positive observations" },
   { key: "hygieneLapses", fallback: "Cleanliness / hygiene lapses noted" },
-  { key: "maintenanceFollowUp", fallback: "Maintenance items needing follow-up action" },
+  {
+    key: "maintenanceFollowUp",
+    fallback: "Maintenance items needing follow-up action",
+  },
   { key: "urgentMatters", fallback: "Urgent Matters" },
   { key: "signature", fallback: "Signature of Duty Officer" },
   { key: "countersignedBy", fallback: "Countersigned by" },
@@ -64,7 +67,11 @@ const normalize = (t = {}) => ({
 });
 
 export default function ReportFormatDialog({ open, onClose, onSaved }) {
-  const [draft, setDraft] = useState({ sections: [], customFields: [], fixedFields: {} });
+  const [draft, setDraft] = useState({
+    sections: [],
+    customFields: [],
+    fixedFields: {},
+  });
   const [loading, setLoading] = useState(false),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
@@ -176,79 +183,63 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
       },
     }));
 
- const save = async () => {
-  setError("");
-  setMessage("");
+  const save = async () => {
+    setError("");
+    setMessage("");
 
-  if (!draft.sections.length) {
-    return setError("At least one section is required.");
-  }
+    if (!draft.sections.length) {
+      return setError("At least one section is required.");
+    }
 
-  if (draft.sections.some((s) => !s.title.trim())) {
-    return setError("Every section needs a title.");
-  }
+    if (draft.sections.some((s) => !s.title.trim())) {
+      return setError("Every section needs a title.");
+    }
 
-  if (
-    draft.sections.some((s) =>
-      s.items.some((i) => !i.label.trim())
-    )
-  ) {
-    return setError("Every checklist item needs a label.");
-  }
+    if (draft.sections.some((s) => s.items.some((i) => !i.label.trim()))) {
+      return setError("Every checklist item needs a label.");
+    }
 
-  if (draft.customFields.some((f) => !f.label.trim())) {
-    return setError("Every additional field needs a label.");
-  }
+    if (draft.customFields.some((f) => !f.label.trim())) {
+      return setError("Every additional field needs a label.");
+    }
 
-  if (
-    draft.customFields.some(
-      (f) =>
-        f.type === "select" &&
-        !f.options?.length
-    )
-  ) {
-    return setError("Select fields need at least one option.");
-  }
+    if (
+      draft.customFields.some((f) => f.type === "select" && !f.options?.length)
+    ) {
+      return setError("Select fields need at least one option.");
+    }
 
-  // NEW: enabled fixed fields must still have a label
-  if (
-    FIXED_FIELD_DEFS.some(
-      ({ key }) =>
-        draft.fixedFields[key]?.enabled &&
-        !draft.fixedFields[key]?.label?.trim(),
-    )
-  ) {
-    return setError("Every enabled field below needs a label.");
-  }
+    // NEW: enabled fixed fields must still have a label
+    if (
+      FIXED_FIELD_DEFS.some(
+        ({ key }) =>
+          draft.fixedFields[key]?.enabled &&
+          !draft.fixedFields[key]?.label?.trim(),
+      )
+    ) {
+      return setError("Every enabled field below needs a label.");
+    }
 
-  try {
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const r = await api.put(
-      "/reports/template",
-      draft
-    );
+      const r = await api.put("/reports/template", draft);
 
-    const saved =
-      r?.data?.template || r?.data;
+      const saved = r?.data?.template || r?.data;
 
-    setDraft(normalize(saved));
+      setDraft(normalize(saved));
 
-    // parent refresh
-    onSaved?.(saved);
+      // parent refresh
+      onSaved?.(saved);
 
-    // dialog close
-    onClose();
-
-  } catch (e) {
-    setError(
-      e?.response?.data?.message ||
-        "Could not save report format."
-    );
-  } finally {
-    setSaving(false);
-  }
-};
+      // dialog close
+      onClose();
+    } catch (e) {
+      setError(e?.response?.data?.message || "Could not save report format.");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <Dialog
       open={open}
@@ -451,12 +442,16 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
               <Box mb={1}>
                 <Typography fontWeight={800}>Other Report Fields</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Rename or hide the Observations, Urgent Matters and Verification fields.
+                  Rename or hide the Observations, Urgent Matters and
+                  Verification fields.
                 </Typography>
               </Box>
               <Stack spacing={1}>
                 {FIXED_FIELD_DEFS.map(({ key, fallback }) => {
-                  const field = draft.fixedFields[key] || { label: fallback, enabled: true };
+                  const field = draft.fixedFields[key] || {
+                    label: fallback,
+                    enabled: true,
+                  };
                   return (
                     <Stack
                       key={key}
@@ -474,14 +469,20 @@ export default function ReportFormatDialog({ open, onClose, onSaved }) {
                           updateFixedField(key, { label: e.target.value })
                         }
                       />
-                      <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        sx={{ flexShrink: 0 }}
+                      >
                         <Checkbox
                           checked={field.enabled}
                           onChange={(e) =>
                             updateFixedField(key, { enabled: e.target.checked })
                           }
                         />
-                        <Typography variant="caption">Show in reports</Typography>
+                        <Typography variant="caption">
+                          Show in reports
+                        </Typography>
                       </Stack>
                     </Stack>
                   );
