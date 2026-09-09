@@ -23,6 +23,7 @@ const allowedOrigins = [
 process.env.CLIENT_URL,
 "https://sms-ivory-pi.vercel.app",
 "https://sms-5umg175jc-rahulsharma3-9031s-projects.vercel.app",
+"https://sso-portal-ten.vercel.app",
 "http://localhost:3000",
 "http://localhost:3001",
 ].filter(Boolean);
@@ -64,6 +65,18 @@ cors({
       return callback(null, true);
     }
 
+    /*
+      * Allow the SSO portal (production + any future
+      * preview deployment URLs Vercel generates for it).
+      */
+    if (
+      origin.startsWith("https://sso-portal") &&
+      origin.endsWith(".vercel.app")
+    ) {
+      console.log("✅ Vercel CORS allowed (portal):", origin);
+      return callback(null, true);
+    }
+
     console.error("❌ CORS blocked:", origin);
 
     return callback(
@@ -96,9 +109,6 @@ cors({
 app.use(express.json());
 app.use(cookieParser());
 
-/* =========================
-  HEALTH CHECK
-========================= */
 /* =========================
   HEALTH CHECK
 ========================= */
