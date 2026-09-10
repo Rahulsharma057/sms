@@ -137,6 +137,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/forms", require("./routes/formRoutes"));
 app.use("/api/notices", noticeRoutes);
 app.use("/api/dynamic-reports", require("./routes/dynamicReportRoutes"));
+app.use("/api/inspection-reports", require("./routes/inspectionReportRoutes"));
 /* =========================
   ERROR HANDLER
 ========================= */

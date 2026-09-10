@@ -42,11 +42,13 @@ import {
   NotificationsNone,
   AssignmentOutlined,
   ChatBubbleOutline,
-  CheckCircleOutline, DeleteOutline,
+  CheckCircleOutline,
+  DeleteOutline,
   SettingsOutlined,
   AppsOutlined,
   SwapHorizOutlined,
   HomeOutlined,
+  ReportProblemOutlined as InspectionIcon,
 } from "@mui/icons-material";
 
 import Image from "next/image";
@@ -70,15 +72,12 @@ export default function Navbar() {
   const [formsMenuAnchor, setFormsMenuAnchor] = useState(null);
   const [formsDrawerOpen, setFormsDrawerOpen] = useState(false);
 
-  // NEW: Dynamic Reports menu state
   const [visibleDynamicReports, setVisibleDynamicReports] = useState([]);
   const [reportsMenuAnchor, setReportsMenuAnchor] = useState(null);
   const [reportsDrawerOpen, setReportsDrawerOpen] = useState(false);
 
   // =========================================================
   // SSO PORTAL SWITCHER
-  // Only shown if this session came in via the portal handoff
-  // (see app/sso/page.js, which sets this localStorage key).
   // =========================================================
 
   const [portalUrl, setPortalUrl] = useState(null);
@@ -99,17 +98,18 @@ export default function Navbar() {
   const [notificationLoading, setNotificationLoading] = useState(false);
 
   // =========================================================
-  // NOTIFICATION PREFERENCES (mute per category)
+  // NOTIFICATION PREFERENCES
   // =========================================================
 
   const [prefsAnchor, setPrefsAnchor] = useState(null);
   const [mutedTypes, setMutedTypes] = useState([]);
-const NOTIFICATION_CATEGORIES = [
-  { key: "TASK", label: "Tasks & Messages" },
-  { key: "NOTICE", label: "Notices" },
-  { key: "REPORT", label: "Dynamic Reports" },
-  { key: "FORM", label: "Forms" }, 
-];
+
+  const NOTIFICATION_CATEGORIES = [
+    { key: "TASK", label: "Tasks & Messages" },
+    { key: "NOTICE", label: "Notices" },
+    { key: "REPORT", label: "Dynamic Reports" },
+    { key: "FORM", label: "Forms" },
+  ];
 
   const loadPreferences = async () => {
     try {
@@ -135,13 +135,17 @@ const NOTIFICATION_CATEGORIES = [
       : [...mutedTypes, category];
 
     const prev = mutedTypes;
-    setMutedTypes(next); // optimistic update
+
+    setMutedTypes(next);
 
     try {
-      await api.patch("/notifications/preferences", { mutedTypes: next });
+      await api.patch("/notifications/preferences", {
+        mutedTypes: next,
+      });
     } catch (error) {
       console.error("Could not update notification preferences:", error);
-      setMutedTypes(prev); // revert on failure
+
+      setMutedTypes(prev);
     }
   };
 
@@ -162,7 +166,7 @@ const NOTIFICATION_CATEGORIES = [
   }, [user]);
 
   // =========================================================
-  // LOAD DYNAMIC REPORTS (NEW)
+  // LOAD DYNAMIC REPORTS
   // =========================================================
 
   useEffect(() => {
@@ -182,19 +186,21 @@ const NOTIFICATION_CATEGORIES = [
     if (!user) return;
 
     try {
-      if (!silent) setNotificationLoading(true);
+      if (!silent) {
+        setNotificationLoading(true);
+      }
 
       const res = await api.get("/notifications");
 
       setNotifications(
-        Array.isArray(res.data)
-          ? res.data
-          : res.data?.notifications || []
+        Array.isArray(res.data) ? res.data : res.data?.notifications || [],
       );
     } catch (error) {
       console.error("Could not load notifications:", error);
     } finally {
-      if (!silent) setNotificationLoading(false);
+      if (!silent) {
+        setNotificationLoading(false);
+      }
     }
   };
 
@@ -203,7 +209,6 @@ const NOTIFICATION_CATEGORIES = [
 
     loadNotifications();
 
-    // Refresh notifications every 10 seconds
     const interval = setInterval(() => {
       loadNotifications({ silent: true });
     }, 10000);
@@ -216,7 +221,7 @@ const NOTIFICATION_CATEGORIES = [
   // =========================================================
 
   const unreadNotifications = notifications.filter(
-    (notification) => !notification.isRead
+    (notification) => !notification.isRead,
   );
 
   const unreadCount = unreadNotifications.length;
@@ -237,29 +242,32 @@ const NOTIFICATION_CATEGORIES = [
 
         setNotifications((prev) =>
           prev.map((item) =>
-            item._id === notification._id
-              ? { ...item, isRead: true }
-              : item
-          )
+            item._id === notification._id ? { ...item, isRead: true } : item,
+          ),
         );
       }
 
-      // If notification belongs to a task, open task
+      // =====================================================
+      // NOTICE NOTIFICATION
+      // =====================================================
+
       if (notification.type === "NEW_NOTICE" && notification.notice) {
-  const noticeId =
-    notification.notice?._id || notification.notice;
+        const noticeId = notification.notice?._id || notification.notice;
 
-  if (user.role === "teacher") {
-    router.push(`/teacher/notice?notice=${noticeId}`);
-  } else if (user.role === "superadmin") {
-    router.push(`/admin/notice?notice=${noticeId}`);
-  }
+        if (user.role === "teacher") {
+          router.push(`/teacher/notice?notice=${noticeId}`);
+        } else if (user.role === "superadmin") {
+          router.push(`/admin/notice?notice=${noticeId}`);
+        }
 
-  setNotificationAnchor(null);
-  return;
-}
+        setNotificationAnchor(null);
+        return;
+      }
 
-      // NEW: dynamic report notifications
+      // =====================================================
+      // DYNAMIC REPORT NOTIFICATION
+      // =====================================================
+
       if (
         (notification.type === "NEW_DYNAMIC_REPORT" ||
           notification.type === "DYNAMIC_REPORT_SUBMITTED") &&
@@ -290,52 +298,63 @@ const NOTIFICATION_CATEGORIES = [
         prev.map((item) => ({
           ...item,
           isRead: true,
-        }))
+        })),
       );
     } catch (error) {
       console.error("Could not mark all notifications as read:", error);
     }
   };
+
   // =========================================================
-// DELETE NOTIFICATION
-// =========================================================
+  // DELETE NOTIFICATION
+  // =========================================================
 
-const deleteNotification = async (notificationId) => {
-  if (!notificationId) return;
+  const deleteNotification = async (notificationId) => {
+    if (!notificationId) return;
 
-  try {
-    await api.delete(`/notifications/${notificationId}`);
+    try {
+      await api.delete(`/notifications/${notificationId}`);
 
-    setNotifications((prev) =>
-      prev.filter((item) => item._id !== notificationId)
-    );
-  } catch (error) {
-    console.error("Could not delete notification:", error);
-  }
-};
+      setNotifications((prev) =>
+        prev.filter((item) => item._id !== notificationId),
+      );
+    } catch (error) {
+      console.error("Could not delete notification:", error);
+    }
+  };
 
   // =========================================================
   // NOTIFICATION ICON
   // =========================================================
-const getNotificationIcon = (type) => {
-  switch (type) {
-    case "NEW_TASK":
-      return <AssignmentOutlined fontSize="small" />;
-    case "NEW_MESSAGE":
-      return <ChatBubbleOutline fontSize="small" />;
-    case "TASK_STATUS":
-      return <CheckCircleOutline fontSize="small" />;
-    case "NEW_NOTICE":
-      return <Description fontSize="small" />;
-    case "NEW_DYNAMIC_REPORT":
-    case "DYNAMIC_REPORT_SUBMITTED":
-      return <Assessment fontSize="small" />;
-    case "NEW_FORM": // NEW
-      return <DynamicForm fontSize="small" />;
-    default:
-      return <NotificationsNone fontSize="small" />;
-  }
-};
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case "NEW_TASK":
+        return <AssignmentOutlined fontSize="small" />;
+
+      case "NEW_MESSAGE":
+        return <ChatBubbleOutline fontSize="small" />;
+
+      case "NEW_INSPECTION_REPORT":
+        return <InspectionIcon fontSize="small" />;
+
+      case "TASK_STATUS":
+        return <CheckCircleOutline fontSize="small" />;
+
+      case "NEW_NOTICE":
+        return <Description fontSize="small" />;
+
+      case "NEW_DYNAMIC_REPORT":
+      case "DYNAMIC_REPORT_SUBMITTED":
+        return <Assessment fontSize="small" />;
+
+      case "NEW_FORM":
+        return <DynamicForm fontSize="small" />;
+
+      default:
+        return <NotificationsNone fontSize="small" />;
+    }
+  };
 
   const formatNotificationTime = (date) => {
     if (!date) return "";
@@ -372,7 +391,18 @@ const getNotificationIcon = (type) => {
       label: "New Report",
       href: "/teacher/report/new",
       icon: <ChecklistRtl />,
-    },       {
+    },
+    {
+      label: "Inspection",
+      href: "/teacher/inspection",
+      icon: <InspectionIcon />,
+    },
+    {
+      label: "Inspections History",
+      href: "/teacher/inspection/history",
+      icon: <InspectionIcon />,
+    },
+    {
       label: "All Reports",
       href: "/teacher/report/teacher-reports",
       icon: <ChecklistRtl />,
@@ -382,7 +412,6 @@ const getNotificationIcon = (type) => {
       href: "/teacher/tasks",
       icon: <Assignment />,
     },
- 
     {
       label: "Notice",
       href: "/teacher/notice",
@@ -395,6 +424,11 @@ const getNotificationIcon = (type) => {
       label: "Dashboard",
       href: "/admin/dashboard",
       icon: <Dashboard />,
+    },
+    {
+      label: "Inspections",
+      href: "/admin/inspection-reports",
+      icon: <InspectionIcon />,
     },
     {
       label: "Teachers",
@@ -422,7 +456,7 @@ const getNotificationIcon = (type) => {
       icon: <Description />,
     },
     {
-      label: " Dynamic Forms",
+      label: "Dynamic Forms",
       href: "/admin/forms",
       icon: <DynamicForm />,
     },
@@ -433,13 +467,10 @@ const getNotificationIcon = (type) => {
     },
   ];
 
-  const links =
-    user.role === "superadmin" ? adminLinks : teacherLinks;
+  const links = user.role === "superadmin" ? adminLinks : teacherLinks;
 
-  const showFormsMenu =
-    user.role !== "superadmin" && visibleForms.length > 0;
+  const showFormsMenu = user.role !== "superadmin" && visibleForms.length > 0;
 
-  // NEW
   const showReportsMenu =
     user.role !== "superadmin" && visibleDynamicReports.length > 0;
 
@@ -451,7 +482,6 @@ const getNotificationIcon = (type) => {
     setDrawerOpen(false);
   };
 
-  // NEW
   const goToDynamicReport = (reportId) => {
     router.push(`/reports/${reportId}`);
 
@@ -472,7 +502,7 @@ const getNotificationIcon = (type) => {
         bgcolor: LIGHT_BG,
       }}
     >
-      {/* Drawer Header */}
+      {/* DRAWER HEADER */}
 
       <Box
         sx={{
@@ -526,14 +556,10 @@ const getNotificationIcon = (type) => {
 
                 color: isActive ? "#FFFFFF" : "#202020",
 
-                bgcolor: isActive
-                  ? BLUE
-                  : "transparent",
+                bgcolor: isActive ? BLUE : "transparent",
 
                 "&:hover": {
-                  bgcolor: isActive
-                    ? BLUE
-                    : "rgba(23, 43, 143, 0.06)",
+                  bgcolor: isActive ? BLUE : "rgba(23, 43, 143, 0.06)",
                 },
 
                 "&.Mui-selected": {
@@ -553,9 +579,7 @@ const getNotificationIcon = (type) => {
               <ListItemIcon
                 sx={{
                   minWidth: 40,
-                  color: isActive
-                    ? "#FFFFFF"
-                    : "rgba(23, 43, 143, 0.85)",
+                  color: isActive ? "#FFFFFF" : "rgba(23, 43, 143, 0.85)",
                 }}
               >
                 {l.icon}
@@ -572,14 +596,14 @@ const getNotificationIcon = (type) => {
           );
         })}
 
-        {/* Forms */}
+        {/* ===================================================
+            MOBILE FORMS
+        =================================================== */}
 
         {showFormsMenu && (
           <>
             <ListItemButton
-              onClick={() =>
-                setFormsDrawerOpen((p) => !p)
-              }
+              onClick={() => setFormsDrawerOpen((p) => !p)}
               sx={{
                 mx: 1,
                 my: 0.35,
@@ -610,23 +634,13 @@ const getNotificationIcon = (type) => {
               />
 
               {formsDrawerOpen ? (
-                <ExpandLess
-                  fontSize="small"
-                  sx={{ color: BLUE }}
-                />
+                <ExpandLess fontSize="small" sx={{ color: BLUE }} />
               ) : (
-                <ExpandMore
-                  fontSize="small"
-                  sx={{ color: BLUE }}
-                />
+                <ExpandMore fontSize="small" sx={{ color: BLUE }} />
               )}
             </ListItemButton>
 
-            <Collapse
-              in={formsDrawerOpen}
-              timeout="auto"
-              unmountOnExit
-            >
+            <Collapse in={formsDrawerOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {visibleForms.map((f) => (
                   <ListItemButton
@@ -641,8 +655,7 @@ const getNotificationIcon = (type) => {
                       color: "#333333",
 
                       "&:hover": {
-                        bgcolor:
-                          "rgba(23, 43, 143, 0.06)",
+                        bgcolor: "rgba(23, 43, 143, 0.06)",
                       },
                     }}
                   >
@@ -668,7 +681,9 @@ const getNotificationIcon = (type) => {
           </>
         )}
 
-        {/* Dynamic Reports (NEW) */}
+        {/* ===================================================
+            MOBILE DYNAMIC REPORTS
+        =================================================== */}
 
         {showReportsMenu && (
           <>
@@ -729,7 +744,12 @@ const getNotificationIcon = (type) => {
                       },
                     }}
                   >
-                    <ListItemIcon sx={{ minWidth: 32, color: BLUE }}>
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 32,
+                        color: BLUE,
+                      }}
+                    >
                       <Assessment fontSize="small" />
                     </ListItemIcon>
 
@@ -742,7 +762,9 @@ const getNotificationIcon = (type) => {
                             ? "Due today"
                             : null
                       }
-                      primaryTypographyProps={{ fontSize: "0.85rem" }}
+                      primaryTypographyProps={{
+                        fontSize: "0.85rem",
+                      }}
                       secondaryTypographyProps={{
                         fontSize: "0.68rem",
                         color: r.submittedToday ? "success.main" : "error.main",
@@ -772,11 +794,11 @@ const getNotificationIcon = (type) => {
           color: "#171717",
           borderRadius: 0,
 
-          boxShadow:
-            "0 3px 12px rgba(0, 0, 0, 0.10)",
+          boxShadow: "0 3px 12px rgba(0, 0, 0, 0.10)",
 
-          borderBottom:
-            "1px solid rgba(0, 0, 0, 0.06)",
+          borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
+
+          zIndex: (theme) => theme.zIndex.appBar,
         }}
       >
         <Toolbar
@@ -791,9 +813,14 @@ const getNotificationIcon = (type) => {
               sm: 2.5,
               md: 3,
             },
+
+            gap: 0,
+            overflow: "hidden",
           }}
         >
-          {/* MOBILE MENU */}
+          {/* =================================================
+              MOBILE MENU
+          ================================================= */}
 
           {isMobile && (
             <IconButton
@@ -804,8 +831,7 @@ const getNotificationIcon = (type) => {
                 color: BLUE,
 
                 "&:hover": {
-                  bgcolor:
-                    "rgba(23, 43, 143, 0.06)",
+                  bgcolor: "rgba(23, 43, 143, 0.06)",
                 },
               }}
             >
@@ -813,22 +839,52 @@ const getNotificationIcon = (type) => {
             </IconButton>
           )}
 
-          {/* BRAND */}
+          {/* =================================================
+              BRAND
+          ================================================= */}
 
           <Box
             sx={{
-              flexGrow: 1,
-              minWidth: 0,
+              flexGrow: 0,
+              flexShrink: 0,
+
+              width: {
+                xs: "auto",
+                sm: user.role === "superadmin" ? 270 : 235,
+                md: user.role === "superadmin" ? 295 : 255,
+              },
+
+              minWidth: {
+                xs: "auto",
+                sm: user.role === "superadmin" ? 270 : 235,
+                md: user.role === "superadmin" ? 295 : 255,
+              },
+
+              pr: {
+                xs: 0.5,
+                sm: 1.5,
+                md: 2,
+              },
+
+              overflow: "visible",
             }}
           >
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: { xs: 0.7, sm: 1.2 },
-                minWidth: 0,
+
+                gap: {
+                  xs: 0.6,
+                  sm: 0.9,
+                  md: 1.1,
+                },
+
+                whiteSpace: "nowrap",
+                width: "max-content",
               }}
             >
+              {/* LOGO */}
               <Image
                 src="/sleepwell-logo.png"
                 alt="Sleepwell Foundation"
@@ -839,357 +895,474 @@ const getNotificationIcon = (type) => {
                   height: "auto",
                   maxWidth: "150px",
                   objectFit: "contain",
+                  flexShrink: 0,
                 }}
                 sizes="(max-width: 600px) 105px, 150px"
               />
 
+              {/* ROLE */}
               <Typography
-                variant="h6"
-                noWrap
+                component="span"
                 sx={{
-                  fontWeight: 800,
+                  display: "inline-flex",
+                  alignItems: "center",
+
+                  fontWeight: 700,
 
                   fontSize: {
-                    xs: "0.78rem",
-                    sm: "0.95rem",
-                    md: "1.15rem",
+                    xs: "0.72rem",
+                    sm: "0.84rem",
+                    md: "0.96rem",
                   },
 
-                  color: "#171717",
+                  color: BLUE,
 
                   whiteSpace: "nowrap",
 
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  lineHeight: 1,
 
-                  lineHeight: 1.2,
+                  flexShrink: 0,
                 }}
               >
-                <Box
-                  component="span"
-                  sx={{
-                    color: BLUE,
-                    fontWeight: 700,
-                  }}
-                >
-                  —
-                  {user.role === "superadmin"
-                    ? " Super Admin"
-                    : " Duty Officer Checklist"}
-                </Box>
+                —&nbsp;
+                {user.role === "superadmin"
+                  ? "Super Admin"
+                  : "Duty Officer Checklist"}
               </Typography>
             </Box>
           </Box>
 
-          {/* DESKTOP NAV LINKS */}
+          {/* =================================================
+              DESKTOP NAVIGATION
+              HORIZONTAL SCROLL
+          ================================================= */}
 
-          {!isMobile &&
-            links.map((l) => {
-              const isActive = pathname === l.href;
+          {!isMobile && (
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: 0,
 
-              return (
-                <Box
-                  key={l.href}
-                  onClick={() => router.push(l.href)}
-                  sx={{
-                    position: "relative",
+                display: "flex",
+                alignItems: "stretch",
 
-                    cursor: "pointer",
+                overflowX: "auto",
+                overflowY: "hidden",
 
-                    display: "flex",
-                    alignItems: "center",
+                height: 64,
 
-                    px: 1.35,
-                    py: 2.05,
-                    mx: 0.15,
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
 
-                    fontSize: "0.87rem",
+                "&::-webkit-scrollbar": {
+                  display: "none",
+                },
 
-                    fontWeight: isActive
-                      ? 700
-                      : 500,
+                // Keep all nav items in one line
+                "& > *": {
+                  flexShrink: 0,
+                },
+              }}
+            >
+              {/* =================================================
+                  MAIN LINKS
+              ================================================= */}
 
-                    color: isActive
-                      ? "#28188b"
-                      : "#252525",
+              {links.map((l) => {
+                const isActive = pathname === l.href;
 
-                    transition:
-                      "color 0.2s ease, background-color 0.2s ease",
-
-                    whiteSpace: "nowrap",
-
-                    borderRadius: isActive
-                      ? 1.2
-                      : 0,
-
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      left: 8,
-                      right: 8,
-                      bottom: 0,
-
-                      height: 3,
-
-                      bgcolor: BLUE,
-
-                      transform: isActive
-                        ? "scaleX(1)"
-                        : "scaleX(0)",
-
-                      transformOrigin: "center",
-
-                      transition:
-                        "transform 0.22s ease",
-
-                      borderRadius:
-                        "3px 3px 0 0",
-                    },
-
-                    "&:hover": {
-                      color: BLUE,
-                    },
-
-                    "&:hover::after": {
-                      transform: "scaleX(1)",
-                    },
-                  }}
-                >
-                  {l.label}
-                </Box>
-              );
-            })}
-
-          {/* DESKTOP FORMS */}
-
-          {!isMobile && showFormsMenu && (
-            <>
-              <Box
-                onClick={(e) =>
-                  setFormsMenuAnchor(
-                    e.currentTarget
-                  )
-                }
-                sx={{
-                  position: "relative",
-
-                  cursor: "pointer",
-
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.4,
-
-                  px: 1.35,
-                  py: 2.05,
-                  mx: 0.15,
-
-                  fontSize: "0.87rem",
-                  fontWeight: 500,
-
-                  color: "#252525",
-
-                  whiteSpace: "nowrap",
-
-                  "&:hover": {
-                    bgcolor: "transparent",
-                    color: BLUE,
-                  },
-
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    left: 8,
-                    right: 8,
-                    bottom: 0,
-                    height: 3,
-
-                    bgcolor: BLUE,
-
-                    transform: formsMenuAnchor
-                      ? "scaleX(1)"
-                      : "scaleX(0)",
-
-                    transition:
-                      "transform 0.22s ease",
-
-                    borderRadius:
-                      "3px 3px 0 0",
-                  },
-
-                  "&:hover::after": {
-                    transform: "scaleX(1)",
-                  },
-                }}
-              >
-                Forms
-
-                {formsMenuAnchor ? (
-                  <ExpandLess
-                    fontSize="small"
-                    sx={{ color: BLUE }}
-                  />
-                ) : (
-                  <ExpandMore fontSize="small" />
-                )}
-              </Box>
-
-              <Menu
-                anchorEl={formsMenuAnchor}
-                open={!!formsMenuAnchor}
-                onClose={() =>
-                  setFormsMenuAnchor(null)
-                }
-                PaperProps={{
-                  elevation: 4,
-                  sx: {
-                    mt: 1,
-                    minWidth: 210,
-                    borderRadius: 1.5,
-                    border:
-                      "1px solid rgba(0,0,0,0.06)",
-                  },
-                }}
-              >
-                {visibleForms.map((f) => (
-                  <MenuItem
-                    key={f._id}
-                    onClick={() =>
-                      goToForm(f.slug)
-                    }
+                return (
+                  <Box
+                    key={l.href}
+                    onClick={() => router.push(l.href)}
                     sx={{
-                      fontSize: "0.87rem",
+                      position: "relative",
+
+                      cursor: "pointer",
+
+                      display: "flex",
+                      alignItems: "center",
+
+                      px: {
+                        sm: 1.05,
+                        md: 1.25,
+                      },
+
+                      height: 64,
+
+                      mx: 0.1,
+
+                      fontSize: {
+                        sm: "0.79rem",
+                        md: "0.85rem",
+                      },
+
+                      fontWeight: isActive ? 700 : 500,
+
+                      color: isActive ? "#28188b" : "#252525",
+
+                      transition: "color 0.2s ease, background-color 0.2s ease",
+
+                      whiteSpace: "nowrap",
+
+                      flexShrink: 0,
+
+                      borderRadius: isActive ? 1.2 : 0,
+
+                      "&::after": {
+                        content: '""',
+
+                        position: "absolute",
+
+                        left: 8,
+                        right: 8,
+                        bottom: 0,
+
+                        height: 3,
+
+                        bgcolor: BLUE,
+
+                        transform: isActive ? "scaleX(1)" : "scaleX(0)",
+
+                        transformOrigin: "center",
+
+                        transition: "transform 0.22s ease",
+
+                        borderRadius: "3px 3px 0 0",
+                      },
 
                       "&:hover": {
-                        bgcolor:
-                          "rgba(23, 43, 143, 0.07)",
                         color: BLUE,
+                      },
+
+                      "&:hover::after": {
+                        transform: "scaleX(1)",
                       },
                     }}
                   >
-                    <ListItemIcon
-                      sx={{
-                        minWidth: 32,
-                        color: BLUE,
-                      }}
-                    >
-                      <Description fontSize="small" />
-                    </ListItemIcon>
+                    {l.label}
+                  </Box>
+                );
+              })}
 
-                    {f.title}
-                  </MenuItem>
-                ))}
-              </Menu>
-            </>
-          )}
+              {/* =================================================
+                  DESKTOP FORMS
+              ================================================= */}
 
-          {/* DESKTOP DYNAMIC REPORTS (NEW) */}
-
-          {!isMobile && showReportsMenu && (
-            <>
-              <Box
-                onClick={(e) => setReportsMenuAnchor(e.currentTarget)}
-                sx={{
-                  position: "relative",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.4,
-                  px: 1.35,
-                  py: 2.05,
-                  mx: 0.15,
-                  fontSize: "0.87rem",
-                  fontWeight: 500,
-                  color: "#252525",
-                  whiteSpace: "nowrap",
-
-                  "&:hover": {
-                    bgcolor: "transparent",
-                    color: BLUE,
-                  },
-
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    left: 8,
-                    right: 8,
-                    bottom: 0,
-                    height: 3,
-                    bgcolor: BLUE,
-                    transform: reportsMenuAnchor ? "scaleX(1)" : "scaleX(0)",
-                    transition: "transform 0.22s ease",
-                    borderRadius: "3px 3px 0 0",
-                  },
-
-                  "&:hover::after": {
-                    transform: "scaleX(1)",
-                  },
-                }}
-              >
-                Reports
-                {reportsMenuAnchor ? (
-                  <ExpandLess fontSize="small" sx={{ color: BLUE }} />
-                ) : (
-                  <ExpandMore fontSize="small" />
-                )}
-              </Box>
-
-              <Menu
-                anchorEl={reportsMenuAnchor}
-                open={!!reportsMenuAnchor}
-                onClose={() => setReportsMenuAnchor(null)}
-                PaperProps={{
-                  elevation: 4,
-                  sx: {
-                    mt: 1,
-                    minWidth: 230,
-                    borderRadius: 1.5,
-                    border: "1px solid rgba(0,0,0,0.06)",
-                  },
-                }}
-              >
-                {visibleDynamicReports.map((r) => (
-                  <MenuItem
-                    key={r._id}
-                    onClick={() => goToDynamicReport(r._id)}
+              {showFormsMenu && (
+                <>
+                  <Box
+                    onClick={(e) => setFormsMenuAnchor(e.currentTarget)}
                     sx={{
-                      fontSize: "0.87rem",
+                      position: "relative",
+
+                      cursor: "pointer",
+
+                      display: "flex",
+                      alignItems: "center",
+
+                      gap: 0.3,
+
+                      px: {
+                        sm: 1.05,
+                        md: 1.25,
+                      },
+
+                      height: 64,
+
+                      mx: 0.1,
+
+                      fontSize: {
+                        sm: "0.79rem",
+                        md: "0.85rem",
+                      },
+
+                      fontWeight: 500,
+
+                      color: "#252525",
+
+                      whiteSpace: "nowrap",
+
+                      flexShrink: 0,
+
                       "&:hover": {
-                        bgcolor: "rgba(23, 43, 143, 0.07)",
                         color: BLUE,
+                      },
+
+                      "&::after": {
+                        content: '""',
+
+                        position: "absolute",
+
+                        left: 8,
+                        right: 8,
+                        bottom: 0,
+
+                        height: 3,
+
+                        bgcolor: BLUE,
+
+                        transform: formsMenuAnchor ? "scaleX(1)" : "scaleX(0)",
+
+                        transition: "transform 0.22s ease",
+
+                        borderRadius: "3px 3px 0 0",
+                      },
+
+                      "&:hover::after": {
+                        transform: "scaleX(1)",
                       },
                     }}
                   >
-                    <ListItemIcon sx={{ minWidth: 32, color: BLUE }}>
-                      <Assessment fontSize="small" />
-                    </ListItemIcon>
-                    <Box>
-                      <Typography fontSize="0.87rem">{r.title}</Typography>
-                      {(r.submittedToday || r.dueToday) && (
-                        <Typography
-                          fontSize="0.68rem"
-                          color={r.submittedToday ? "success.main" : "error.main"}
+                    Forms
+                    {formsMenuAnchor ? (
+                      <ExpandLess
+                        sx={{
+                          fontSize: 18,
+                          color: BLUE,
+                        }}
+                      />
+                    ) : (
+                      <ExpandMore
+                        sx={{
+                          fontSize: 18,
+                          color: "#555555",
+                        }}
+                      />
+                    )}
+                  </Box>
+
+                  <Menu
+                    anchorEl={formsMenuAnchor}
+                    open={!!formsMenuAnchor}
+                    onClose={() => setFormsMenuAnchor(null)}
+                    anchorOrigin={{
+                      vertical: "bottom",
+                      horizontal: "left",
+                    }}
+                    transformOrigin={{
+                      vertical: "top",
+                      horizontal: "left",
+                    }}
+                    PaperProps={{
+                      elevation: 4,
+                      sx: {
+                        mt: 1,
+
+                        minWidth: 210,
+
+                        borderRadius: 1.5,
+
+                        border: "1px solid rgba(0,0,0,0.06)",
+                      },
+                    }}
+                  >
+                    {visibleForms.map((f) => (
+                      <MenuItem
+                        key={f._id}
+                        onClick={() => goToForm(f.slug)}
+                        sx={{
+                          fontSize: "0.87rem",
+
+                          "&:hover": {
+                            bgcolor: "rgba(23, 43, 143, 0.07)",
+                            color: BLUE,
+                          },
+                        }}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 32,
+                            color: BLUE,
+                          }}
                         >
-                          {r.submittedToday ? "Submitted today" : "Due today"}
-                        </Typography>
-                      )}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Menu>
-            </>
+                          <Description fontSize="small" />
+                        </ListItemIcon>
+
+                        {f.title}
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                </>
+              )}
+
+              {/* =================================================
+                  DESKTOP DYNAMIC REPORTS
+              ================================================= */}
+
+              {showReportsMenu && (
+                <>
+                  <Box
+                    onClick={(e) => setReportsMenuAnchor(e.currentTarget)}
+                    sx={{
+                      position: "relative",
+
+                      cursor: "pointer",
+
+                      display: "flex",
+                      alignItems: "center",
+
+                      gap: 0.3,
+
+                      px: {
+                        sm: 1.05,
+                        md: 1.25,
+                      },
+
+                      height: 64,
+
+                      mx: 0.1,
+
+                      fontSize: {
+                        sm: "0.79rem",
+                        md: "0.85rem",
+                      },
+
+                      fontWeight: 500,
+
+                      color: "#252525",
+
+                      whiteSpace: "nowrap",
+
+                      flexShrink: 0,
+
+                      "&:hover": {
+                        color: BLUE,
+                      },
+
+                      "&::after": {
+                        content: '""',
+
+                        position: "absolute",
+
+                        left: 8,
+                        right: 8,
+                        bottom: 0,
+
+                        height: 3,
+
+                        bgcolor: BLUE,
+
+                        transform: reportsMenuAnchor
+                          ? "scaleX(1)"
+                          : "scaleX(0)",
+
+                        transition: "transform 0.22s ease",
+
+                        borderRadius: "3px 3px 0 0",
+                      },
+
+                      "&:hover::after": {
+                        transform: "scaleX(1)",
+                      },
+                    }}
+                  >
+                    Reports
+                    {reportsMenuAnchor ? (
+                      <ExpandLess
+                        sx={{
+                          fontSize: 18,
+                          color: BLUE,
+                        }}
+                      />
+                    ) : (
+                      <ExpandMore
+                        sx={{
+                          fontSize: 18,
+                          color: "#555555",
+                        }}
+                      />
+                    )}
+                  </Box>
+
+                  <Menu
+                    anchorEl={reportsMenuAnchor}
+                    open={!!reportsMenuAnchor}
+                    onClose={() => setReportsMenuAnchor(null)}
+                    anchorOrigin={{
+                      vertical: "bottom",
+                      horizontal: "left",
+                    }}
+                    transformOrigin={{
+                      vertical: "top",
+                      horizontal: "left",
+                    }}
+                    PaperProps={{
+                      elevation: 4,
+                      sx: {
+                        mt: 1,
+
+                        minWidth: 230,
+
+                        borderRadius: 1.5,
+
+                        border: "1px solid rgba(0,0,0,0.06)",
+                      },
+                    }}
+                  >
+                    {visibleDynamicReports.map((r) => (
+                      <MenuItem
+                        key={r._id}
+                        onClick={() => goToDynamicReport(r._id)}
+                        sx={{
+                          fontSize: "0.87rem",
+
+                          "&:hover": {
+                            bgcolor: "rgba(23, 43, 143, 0.07)",
+                            color: BLUE,
+                          },
+                        }}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 32,
+                            color: BLUE,
+                          }}
+                        >
+                          <Assessment fontSize="small" />
+                        </ListItemIcon>
+
+                        <Box>
+                          <Typography fontSize="0.87rem">{r.title}</Typography>
+
+                          {(r.submittedToday || r.dueToday) && (
+                            <Typography
+                              fontSize="0.68rem"
+                              color={
+                                r.submittedToday ? "success.main" : "error.main"
+                              }
+                            >
+                              {r.submittedToday
+                                ? "Submitted today"
+                                : "Due today"}
+                            </Typography>
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                </>
+              )}
+            </Box>
           )}
 
-          {/* =====================================================
-              SSO PORTAL SWITCHER (only visible if logged in via portal)
-          ===================================================== */}
+          {/* =================================================
+              SSO PORTAL SWITCHER
+          ================================================= */}
 
           {portalUrl && (
             <>
               <IconButton
                 onClick={(e) => setSwitchAnchor(e.currentTarget)}
                 sx={{
-                  ml: { xs: 0.2, sm: 0.5 },
+                  ml: {
+                    xs: 0.2,
+                    sm: 0.5,
+                  },
+
                   color: BLUE,
+
+                  flexShrink: 0,
 
                   "&:hover": {
                     bgcolor: "rgba(23, 43, 143, 0.06)",
@@ -1205,16 +1378,29 @@ const getNotificationIcon = (type) => {
                 onClose={() => setSwitchAnchor(null)}
                 PaperProps={{
                   elevation: 4,
+
                   sx: {
                     mt: 1,
+
                     minWidth: 220,
+
                     borderRadius: 1.5,
+
                     border: "1px solid rgba(0,0,0,0.06)",
                   },
                 }}
               >
-                <MenuItem disabled sx={{ opacity: "1 !important" }}>
-                  <Typography fontWeight={700} fontSize="0.78rem" color="text.secondary">
+                <MenuItem
+                  disabled
+                  sx={{
+                    opacity: "1 !important",
+                  }}
+                >
+                  <Typography
+                    fontWeight={700}
+                    fontSize="0.78rem"
+                    color="text.secondary"
+                  >
                     Signed in via Portal
                   </Typography>
                 </MenuItem>
@@ -1226,7 +1412,13 @@ const getNotificationIcon = (type) => {
                     window.location.href = portalUrl;
                   }}
                 >
-                  <SwapHorizOutlined fontSize="small" sx={{ mr: 1.2, color: BLUE }} />
+                  <SwapHorizOutlined
+                    fontSize="small"
+                    sx={{
+                      mr: 1.2,
+                      color: BLUE,
+                    }}
+                  />
                   Switch app
                 </MenuItem>
 
@@ -1235,43 +1427,54 @@ const getNotificationIcon = (type) => {
                     window.location.href = `${portalUrl}/dashboard`;
                   }}
                 >
-                  <HomeOutlined fontSize="small" sx={{ mr: 1.2, color: BLUE }} />
+                  <HomeOutlined
+                    fontSize="small"
+                    sx={{
+                      mr: 1.2,
+                      color: BLUE,
+                    }}
+                  />
                   Portal dashboard
                 </MenuItem>
               </Menu>
             </>
           )}
 
-          {/* =====================================================
+          {/* =================================================
               NOTIFICATION BELL
-          ===================================================== */}
+          ================================================= */}
 
           <IconButton
             onClick={handleNotificationOpen}
             sx={{
-              ml: { xs: 0.2, sm: 0.5 },
+              ml: {
+                xs: 0.2,
+                sm: 0.5,
+              },
+
               color: BLUE,
 
+              flexShrink: 0,
+
               "&:hover": {
-                bgcolor:
-                  "rgba(23, 43, 143, 0.06)",
+                bgcolor: "rgba(23, 43, 143, 0.06)",
               },
             }}
           >
             <Badge
-              badgeContent={
-                unreadCount > 99
-                  ? "99+"
-                  : unreadCount
-              }
+              badgeContent={unreadCount > 99 ? "99+" : unreadCount}
               color="error"
               overlap="circular"
               sx={{
                 "& .MuiBadge-badge": {
                   fontSize: "0.62rem",
+
                   minWidth: 17,
+
                   height: 17,
+
                   px: 0.4,
+
                   fontWeight: 700,
                 },
               }}
@@ -1280,9 +1483,9 @@ const getNotificationIcon = (type) => {
             </Badge>
           </IconButton>
 
-          {/* =====================================================
+          {/* =================================================
               NOTIFICATION POPOVER
-          ===================================================== */}
+          ================================================= */}
 
           <Popover
             open={Boolean(notificationAnchor)}
@@ -1302,39 +1505,41 @@ const getNotificationIcon = (type) => {
                   xs: "calc(100vw - 24px)",
                   sm: 380,
                 },
+
                 maxWidth: 380,
+
                 mt: 1,
+
                 borderRadius: 2,
+
                 overflow: "hidden",
               },
             }}
           >
-            {/* Header */}
+            {/* HEADER */}
 
             <Box
               sx={{
                 px: 2,
                 py: 1.5,
+
                 display: "flex",
+
                 alignItems: "center",
+
                 justifyContent: "space-between",
-                borderBottom:
-                  "1px solid",
+
+                borderBottom: "1px solid",
+
                 borderColor: "divider",
               }}
             >
               <Box>
-                <Typography
-                  fontWeight={800}
-                  fontSize="0.95rem"
-                >
+                <Typography fontWeight={800} fontSize="0.95rem">
                   Notifications
                 </Typography>
 
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                >
+                <Typography variant="caption" color="text.secondary">
                   {unreadCount > 0
                     ? `${unreadCount} unread`
                     : "You're all caught up"}
@@ -1349,16 +1554,23 @@ const getNotificationIcon = (type) => {
                     sx={{
                       border: 0,
                       bgcolor: "transparent",
+
                       color: BLUE,
+
                       cursor: "pointer",
+
                       fontSize: "0.75rem",
+
                       fontWeight: 700,
+
                       mr: 0.5,
                     }}
                   >
                     Mark all read
                   </Typography>
                 )}
+
+                {/* PREFERENCES */}
 
                 <Popover
                   open={!!prefsAnchor}
@@ -1375,8 +1587,11 @@ const getNotificationIcon = (type) => {
                   PaperProps={{
                     sx: {
                       mt: 1,
+
                       borderRadius: 2,
+
                       minWidth: 240,
+
                       border: "1px solid rgba(0,0,0,0.06)",
                     },
                   }}
@@ -1401,6 +1616,7 @@ const getNotificationIcon = (type) => {
                           <Typography fontSize="0.83rem" color="#334155">
                             {c.label}
                           </Typography>
+
                           <Switch
                             size="small"
                             checked={mutedTypes.includes(c.key)}
@@ -1417,6 +1633,7 @@ const getNotificationIcon = (type) => {
                   onClick={handlePrefsOpen}
                   sx={{
                     color: BLUE,
+
                     "&:hover": {
                       bgcolor: "rgba(23, 43, 143, 0.06)",
                     },
@@ -1427,7 +1644,9 @@ const getNotificationIcon = (type) => {
               </Stack>
             </Box>
 
-            {/* Notification list */}
+            {/* =================================================
+                NOTIFICATION LIST
+            ================================================= */}
 
             <Box
               sx={{
@@ -1439,7 +1658,9 @@ const getNotificationIcon = (type) => {
                 <Box
                   sx={{
                     py: 5,
+
                     display: "flex",
+
                     justifyContent: "center",
                   }}
                 >
@@ -1449,187 +1670,210 @@ const getNotificationIcon = (type) => {
                 <Box
                   sx={{
                     py: 5,
+
                     px: 2,
+
                     textAlign: "center",
                   }}
                 >
                   <NotificationsNone
                     sx={{
                       fontSize: 38,
+
                       color: "text.disabled",
+
                       mb: 1,
                     }}
                   />
 
-                  <Typography
-                    fontWeight={700}
-                    fontSize="0.9rem"
-                  >
+                  <Typography fontWeight={700} fontSize="0.9rem">
                     No notifications
                   </Typography>
 
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                  >
-                    New task and message notifications
-                    will appear here.
+                  <Typography variant="caption" color="text.secondary">
+                    New task and message notifications will appear here.
                   </Typography>
                 </Box>
               ) : (
                 notifications.map((notification) => (
-                <Box
-  key={notification._id}
-  onClick={() => markNotificationRead(notification)}
-  sx={{
-    display: "flex",
-    gap: 1.2,
-    px: 1.7,
-    py: 1.35,
-    cursor: "pointer",
+                  <Box
+                    key={notification._id}
+                    onClick={() => markNotificationRead(notification)}
+                    sx={{
+                      display: "flex",
 
-    bgcolor: notification.isRead
-      ? "#FFFFFF"
-      : "rgba(23, 43, 143, 0.055)",
+                      gap: 1.2,
 
-    borderBottom:
-      "1px solid rgba(0,0,0,0.05)",
+                      px: 1.7,
 
-    "&:hover": {
-      bgcolor:
-        "rgba(23, 43, 143, 0.08)",
-    },
-  }}
->
-  {/* ICON */}
+                      py: 1.35,
 
-  <Box
-    sx={{
-      width: 34,
-      height: 34,
-      minWidth: 34,
-      borderRadius: "50%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      bgcolor: "rgba(23, 43, 143, 0.09)",
-      color: BLUE,
-    }}
-  >
-    {getNotificationIcon(notification.type)}
-  </Box>
+                      cursor: "pointer",
 
-  {/* CONTENT */}
+                      bgcolor: notification.isRead
+                        ? "#FFFFFF"
+                        : "rgba(23, 43, 143, 0.055)",
 
-  <Box
-    sx={{
-      minWidth: 0,
-      flex: 1,
-    }}
-  >
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.7,
-      }}
-    >
-      {!notification.isRead && (
-        <Box
-          sx={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            bgcolor: "error.main",
-            flexShrink: 0,
-          }}
-        />
-      )}
+                      borderBottom: "1px solid rgba(0,0,0,0.05)",
 
-      <Typography
-        fontWeight={
-          notification.isRead ? 600 : 800
-        }
-        fontSize="0.84rem"
-        noWrap
-      >
-        {notification.title}
-      </Typography>
-    </Box>
+                      "&:hover": {
+                        bgcolor: "rgba(23, 43, 143, 0.08)",
+                      },
+                    }}
+                  >
+                    {/* ICON */}
 
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      sx={{
-        mt: 0.3,
-        fontSize: "0.78rem",
-        lineHeight: 1.4,
-        display: "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
-      }}
-    >
-      {notification.message}
-    </Typography>
+                    <Box
+                      sx={{
+                        width: 34,
 
-    <Typography
-      variant="caption"
-      color="text.disabled"
-      sx={{
-        display: "block",
-        mt: 0.45,
-        fontSize: "0.68rem",
-      }}
-    >
-      {formatNotificationTime(
-        notification.createdAt
-      )}
-    </Typography>
-  </Box>
+                        height: 34,
 
-  {/* DELETE BUTTON */}
+                        minWidth: 34,
 
-  <IconButton
-    size="small"
-    onClick={(event) => {
-      event.stopPropagation();
+                        borderRadius: "50%",
 
-      deleteNotification(notification._id);
-    }}
-    sx={{
-      alignSelf: "center",
-      flexShrink: 0,
-      color: "text.disabled",
+                        display: "flex",
 
-      "&:hover": {
-        color: "error.main",
-        bgcolor: "rgba(211, 47, 47, 0.08)",
-      },
-    }}
-  >
-    <DeleteOutline fontSize="small" />
-  </IconButton>
-</Box>
+                        alignItems: "center",
+
+                        justifyContent: "center",
+
+                        bgcolor: "rgba(23, 43, 143, 0.09)",
+
+                        color: BLUE,
+                      }}
+                    >
+                      {getNotificationIcon(notification.type)}
+                    </Box>
+
+                    {/* CONTENT */}
+
+                    <Box
+                      sx={{
+                        minWidth: 0,
+
+                        flex: 1,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+
+                          alignItems: "center",
+
+                          gap: 0.7,
+                        }}
+                      >
+                        {!notification.isRead && (
+                          <Box
+                            sx={{
+                              width: 7,
+
+                              height: 7,
+
+                              borderRadius: "50%",
+
+                              bgcolor: "error.main",
+
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+
+                        <Typography
+                          fontWeight={notification.isRead ? 600 : 800}
+                          fontSize="0.84rem"
+                          noWrap
+                        >
+                          {notification.title}
+                        </Typography>
+                      </Box>
+
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          mt: 0.3,
+
+                          fontSize: "0.78rem",
+
+                          lineHeight: 1.4,
+
+                          display: "-webkit-box",
+
+                          WebkitLineClamp: 2,
+
+                          WebkitBoxOrient: "vertical",
+
+                          overflow: "hidden",
+                        }}
+                      >
+                        {notification.message}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        sx={{
+                          display: "block",
+
+                          mt: 0.45,
+
+                          fontSize: "0.68rem",
+                        }}
+                      >
+                        {formatNotificationTime(notification.createdAt)}
+                      </Typography>
+                    </Box>
+
+                    {/* DELETE */}
+
+                    <IconButton
+                      size="small"
+                      onClick={(event) => {
+                        event.stopPropagation();
+
+                        deleteNotification(notification._id);
+                      }}
+                      sx={{
+                        alignSelf: "center",
+
+                        flexShrink: 0,
+
+                        color: "text.disabled",
+
+                        "&:hover": {
+                          color: "error.main",
+
+                          bgcolor: "rgba(211, 47, 47, 0.08)",
+                        },
+                      }}
+                    >
+                      <DeleteOutline fontSize="small" />
+                    </IconButton>
+                  </Box>
                 ))
               )}
             </Box>
           </Popover>
 
-          {/* =====================================================
+          {/* =================================================
               USER AVATAR
-          ===================================================== */}
+          ================================================= */}
 
           <IconButton
-            onClick={(e) =>
-              setAnchorEl(e.currentTarget)
-            }
+            onClick={(e) => setAnchorEl(e.currentTarget)}
             sx={{
-              ml: { xs: 0.5, sm: 1 },
+              ml: {
+                xs: 0.5,
+                sm: 1,
+              },
+
+              flexShrink: 0,
 
               "&:hover": {
-                bgcolor:
-                  "rgba(23, 43, 143, 0.06)",
+                bgcolor: "rgba(23, 43, 143, 0.06)",
               },
             }}
           >
@@ -1654,12 +1898,13 @@ const getNotificationIcon = (type) => {
                 fontWeight: 700,
               }}
             >
-              {user.name?.[0]?.toUpperCase() ||
-                "U"}
+              {user.name?.[0]?.toUpperCase() || "U"}
             </Avatar>
           </IconButton>
 
-          {/* USER MENU */}
+          {/* =================================================
+              USER MENU
+          ================================================= */}
 
           <Menu
             anchorEl={anchorEl}
@@ -1667,12 +1912,15 @@ const getNotificationIcon = (type) => {
             onClose={() => setAnchorEl(null)}
             PaperProps={{
               elevation: 4,
+
               sx: {
                 mt: 1,
+
                 minWidth: 220,
+
                 borderRadius: 1.5,
-                border:
-                  "1px solid rgba(0,0,0,0.06)",
+
+                border: "1px solid rgba(0,0,0,0.06)",
               },
             }}
           >
@@ -1683,18 +1931,11 @@ const getNotificationIcon = (type) => {
               }}
             >
               <Box>
-                <Typography
-                  fontWeight={700}
-                  fontSize="0.85rem"
-                  color="#171717"
-                >
+                <Typography fontWeight={700} fontSize="0.85rem" color="#171717">
                   {user.name}
                 </Typography>
 
-                <Typography
-                  fontSize="0.75rem"
-                  color="text.secondary"
-                >
+                <Typography fontSize="0.75rem" color="text.secondary">
                   {user.email}
                 </Typography>
               </Box>
@@ -1708,23 +1949,20 @@ const getNotificationIcon = (type) => {
                 color: "error.main",
 
                 "&:hover": {
-                  bgcolor:
-                    "rgba(211, 47, 47, 0.06)",
+                  bgcolor: "rgba(211, 47, 47, 0.06)",
                 },
               }}
             >
-              <Logout
-                fontSize="small"
-                sx={{ mr: 1 }}
-              />
-
+              <Logout fontSize="small" sx={{ mr: 1 }} />
               Logout
             </MenuItem>
           </Menu>
         </Toolbar>
       </AppBar>
 
-      {/* MOBILE DRAWER */}
+      {/* =====================================================
+          MOBILE DRAWER
+      ===================================================== */}
 
       <Drawer
         open={drawerOpen}

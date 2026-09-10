@@ -1,839 +1,1030 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
-  Box,
-  Typography,
-  TextField,
-  IconButton,
-  CircularProgress,
-  Fade,
+  Alert,
   Avatar,
+  Box,
+  Button,
   Chip,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  Divider,
+  IconButton,
+  Paper,
   Stack,
+  TextField,
+  Tooltip,
+  Typography,
 } from "@mui/material";
 
 import {
+  AddAPhoto,
+  CheckCircle,
+  Close,
+  Delete,
+  OpenInNew,
+  PlayArrow,
+  ReportProblemOutlined,
   Send,
-  DoneAll,
-  Done,
-  ChatBubbleOutlineRounded,
-  GroupOutlined,
-  PersonOutline,
+  Visibility,
 } from "@mui/icons-material";
 
-import api from "../lib/api";
-import { useAuth } from "../context/AuthContext";
+import api from "../../../lib/api";
+import Navbar from "../../../components/Navbar";
+import VoiceTextField from "../../../components/VoiceTextField";
+import VoiceNoteRecorder from "../../../components/VoiceNoteRecorder";
 
-const POLL_MS = 5000;
+const EMPTY_ISSUE_FORM = {
+  problemName: "",
+  location: "",
+  direction: "",
+  brokenSince: "",
+  description: "",
+};
 
-function formatMessageTime(dateStr) {
-  if (!dateStr) return "";
+export default function InspectionReportPage() {
+  const router = useRouter();
 
-  const d = new Date(dateStr);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  if (Number.isNaN(d.getTime())) return "";
+  const [form, setForm] = useState(EMPTY_ISSUE_FORM);
 
-  return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
 
-const AVATAR_COLORS = [
-  "#6366F1",
-  "#0EA5E9",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#EC4899",
-];
+  const [voiceBlob, setVoiceBlob] = useState(null);
+  const [voiceDuration, setVoiceDuration] = useState(0);
 
-function colorForName(name = "") {
-  const idx = [...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const [adding, setAdding] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  return AVATAR_COLORS[idx % AVATAR_COLORS.length];
-}
+  // Image viewer
+  const [viewImage, setViewImage] = useState(null);
 
-function initials(name = "") {
-  const parts = name.trim().split(/\s+/);
+  const fileInputRef = useRef(null);
 
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+  /* =====================================================
+     LOAD CURRENT DRAFT
+  ===================================================== */
 
-/**
- * Return a normalized list of users involved in the task.
- *
- * INDIVIDUAL / SEPARATE:
- * assignedBy + assignedTo
- *
- * GROUP:
- * assignedBy + participants[]
- */
-function getTaskPeople(task) {
-  if (!task) return [];
-
-  const people = [];
-
-  if (task.assignedBy) {
-    people.push(task.assignedBy);
-  }
-
-  if (task.mode === "GROUP") {
-    if (Array.isArray(task.participants)) {
-      people.push(...task.participants);
-    }
-  } else if (task.assignedTo) {
-    people.push(task.assignedTo);
-  }
-
-  const unique = new Map();
-
-  people.forEach((person) => {
-    const id = person?._id || person;
-
-    if (!id) return;
-
-    const key = String(id);
-
-    if (!unique.has(key)) {
-      unique.set(key, person);
-    }
-  });
-
-  return [...unique.values()];
-}
-
-function getPersonId(person) {
-  return String(person?._id || person || "");
-}
-
-function isSameUser(a, b) {
-  return String(a) === String(b);
-}
-
-/**
- * For a group task:
- * message is considered seen when every other participant
- * has seen it.
- *
- * For individual/separate:
- * message is seen when the other party has seen it.
- */
-function isMessageSeenByOthers(task, message, myId) {
-  if (!task || !message || !myId) return false;
-
-  const seenBy = Array.isArray(message.seenBy)
-    ? message.seenBy.map(String)
-    : [];
-
-  const people = getTaskPeople(task);
-
-  const otherPeople = people.filter(
-    (person) => getPersonId(person) && !isSameUser(getPersonId(person), myId),
-  );
-
-  if (!otherPeople.length) {
-    return false;
-  }
-
-  return otherPeople.every((person) => seenBy.includes(getPersonId(person)));
-}
-
-export default function TaskChat({ taskId }) {
-  const { user } = useAuth();
-
-  const myId = user?.id || user?._id;
-
-  const [task, setTask] = useState(null);
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [loadError, setLoadError] = useState("");
-
-  const bottomRef = useRef(null);
-  const inputRef = useRef(null);
-
-  // ======================================================
-  // LOAD TASK
-  // ======================================================
-
-  const loadTask = async ({ silent = false } = {}) => {
-    if (!taskId) return;
-
+  const loadDraft = async () => {
     try {
-      const { data } = await api.get(`/tasks/${taskId}`);
+      setLoading(true);
+      setError("");
 
-      setTask(data);
-      setLoadError("");
+      // Clear old report before loading fresh draft
+      setReport(null);
+
+      const res = await api.get("/inspection-reports/mine/draft");
+
+      setReport(res.data || null);
     } catch (err) {
-      if (!silent) {
-        setTask(null);
-
-        setLoadError(
-          err?.response?.data?.message || "Could not load conversation.",
-        );
-      }
+      setError(
+        err?.response?.data?.message ||
+          "Could not load your inspection report."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ======================================================
-  // MARK MESSAGES SEEN
-  // ======================================================
+  useEffect(() => {
+    loadDraft();
+  }, []);
 
-  const markSeen = async () => {
-    if (!taskId) return;
+  /* =====================================================
+     FORM
+  ===================================================== */
 
-    try {
-      await api.patch(`/tasks/${taskId}/messages/seen`);
-    } catch {
-      // Seen status is non-critical.
+  const updateField = (key) => (value) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handlePhotoSelected = (file) => {
+    if (!file) return;
+
+    // Release previous preview URL
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const removeSelectedPhoto = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    setPhotoFile(null);
+    setPhotoPreview(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  // ======================================================
-  // INITIAL LOAD + POLLING
-  // ======================================================
+  const resetIssueForm = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
 
-  useEffect(() => {
-    if (!taskId) return;
+    setForm({ ...EMPTY_ISSUE_FORM });
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setVoiceBlob(null);
+    setVoiceDuration(0);
 
-    setTask(null);
-    setLoadError("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
-    const initialize = async () => {
-      await loadTask();
-      await markSeen();
-    };
+  /* =====================================================
+     ADD ISSUE
+  ===================================================== */
 
-    initialize();
+  const handleAddIssue = async () => {
+    setError("");
 
-    const interval = setInterval(() => {
-      loadTask({ silent: true });
-    }, POLL_MS);
-
-    return () => {
-      clearInterval(interval);
-    };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId]);
-
-  // ======================================================
-  // MARK NEW MESSAGES AS SEEN
-  // ======================================================
-
-  useEffect(() => {
-    if (!task?.messages?.length) return;
-
-    markSeen();
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.messages?.length]);
-
-  // ======================================================
-  // AUTO SCROLL
-  // ======================================================
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
-    });
-  }, [task?.messages?.length]);
-
-  // ======================================================
-  // TASK PEOPLE
-  // ======================================================
-
-  const taskPeople = useMemo(() => getTaskPeople(task), [task]);
-
-  const otherPeople = useMemo(() => {
-    return taskPeople.filter(
-      (person) => !isSameUser(getPersonId(person), myId),
-    );
-  }, [taskPeople, myId]);
-
-  // ======================================================
-  // SEND MESSAGE
-  // ======================================================
-
-  const sendMessage = async () => {
-    if (!text.trim() || sending || !taskId) {
+    if (!form.problemName.trim()) {
+      setError("Problem name is required.");
       return;
     }
 
-    const value = text.trim();
-
-    setText("");
-    setSending(true);
+    setAdding(true);
 
     try {
-      await api.post(`/tasks/${taskId}/messages`, {
-        text: value,
-      });
+      const formData = new FormData();
 
-      await loadTask({ silent: true });
+      formData.append("problemName", form.problemName.trim());
+      formData.append("location", form.location.trim());
+      formData.append("direction", form.direction.trim());
+      formData.append("brokenSince", form.brokenSince.trim());
+      formData.append("description", form.description.trim());
 
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
+      if (photoFile) {
+        formData.append("photo", photoFile);
+      }
+
+      if (voiceBlob) {
+        formData.append(
+          "voiceNote",
+          voiceBlob,
+          "voice-note.webm"
+        );
+
+        formData.append(
+          "voiceNoteDuration",
+          String(voiceDuration)
+        );
+      }
+
+      if (report?._id) {
+        formData.append("reportId", report._id);
+      }
+
+      const res = await api.post(
+        "/inspection-reports/issues",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setReport(res.data);
+
+      // Clear fields after successfully adding issue
+      resetIssueForm();
     } catch (err) {
-      setText(value);
-
-      setLoadError(err?.response?.data?.message || "Could not send message.");
+      setError(
+        err?.response?.data?.message ||
+          "Could not add this issue."
+      );
     } finally {
-      setSending(false);
+      setAdding(false);
     }
   };
 
-  // ======================================================
-  // LOADING
-  // ======================================================
+  /* =====================================================
+     DELETE ISSUE
+  ===================================================== */
 
-  if (!task) {
+  const handleDeleteIssue = async (issueId) => {
+    if (!report?._id) return;
+
+    const confirmed = window.confirm(
+      "Remove this issue from the report?"
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(issueId);
+    setError("");
+
+    try {
+      const res = await api.delete(
+        `/inspection-reports/${report._id}/issues/${issueId}`
+      );
+
+      setReport(res.data);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          "Could not remove this issue."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  /* =====================================================
+     SUBMIT REPORT
+  ===================================================== */
+
+  const handleSubmitReport = async () => {
+    if (!report?._id) return;
+
+    if (!report.issues?.length) {
+      setError(
+        "Add at least one issue before submitting."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Submit this report with ${report.issues.length} issue(s)? You won't be able to edit it after submitting.`
+    );
+
+    if (!confirmed) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      await api.post(
+        `/inspection-reports/${report._id}/submit`
+      );
+
+      /*
+       * IMPORTANT:
+       * Clear old report + form immediately after successful submit.
+       * This prevents old values from appearing when starting
+       * another inspection.
+       */
+      setReport(null);
+      resetIssueForm();
+
+      setSuccess(true);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          "Could not submit the report."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /* =====================================================
+     START NEW INSPECTION
+  ===================================================== */
+
+  const startNew = async () => {
+    setSuccess(false);
+    setError("");
+
+    // Completely clear previous state
+    setReport(null);
+    resetIssueForm();
+
+    /*
+     * Ask backend whether another draft exists.
+     * If there is no draft, form remains completely empty.
+     */
+    await loadDraft();
+  };
+
+  /* =====================================================
+     IMAGE VIEW
+  ===================================================== */
+
+  const openImage = (url) => {
+    if (!url) return;
+    setViewImage(url);
+  };
+
+  const closeImage = () => {
+    setViewImage(null);
+  };
+
+  /* =====================================================
+     LOADING
+  ===================================================== */
+
+  if (loading) {
     return (
       <Box
         sx={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "column",
-          gap: 1,
-          px: 2,
+          bgcolor: "#faf9fb",
+          minHeight: "100vh",
         }}
       >
-        {loadError ? (
-          <>
-            <Typography variant="body2" color="error.main" textAlign="center">
-              {loadError}
-            </Typography>
+        <Navbar />
 
-            <IconButton size="small" onClick={() => loadTask()} color="primary">
-              ↻
-            </IconButton>
-          </>
-        ) : (
-          <CircularProgress size={22} />
-        )}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8,
+          }}
+        >
+          <CircularProgress />
+        </Box>
       </Box>
     );
   }
 
-  const isGroup = task.mode === "GROUP";
+  /* =====================================================
+     SUCCESS SCREEN
+  ===================================================== */
 
-  // ======================================================
-  // LAST OWN MESSAGE
-  // ======================================================
+  if (success) {
+    return (
+      <Box
+        sx={{
+          bgcolor: "#faf9fb",
+          minHeight: "100vh",
+        }}
+      >
+        <Navbar />
 
-  const messages = Array.isArray(task.messages) ? task.messages : [];
+        <Box
+          sx={{
+            maxWidth: 560,
+            mx: "auto",
+            p: { xs: 1.5, sm: 3 },
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2.5, sm: 3 },
+              textAlign: "center",
+              border: "1px solid #e2e8f0",
+              borderRadius: 3,
+              bgcolor: "#fff",
+            }}
+          >
+            <CheckCircle
+              sx={{
+                fontSize: 50,
+                color: "#7e22ce",
+                mb: 1,
+              }}
+            />
 
-  const lastOwnMessage = [...messages]
-    .reverse()
-    .find(
-      (message) =>
-        String(message.sender?._id || message.sender) === String(myId),
+            <Typography
+              fontWeight={800}
+              mb={0.6}
+            >
+              Inspection report submitted
+            </Typography>
+
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              mb={2.5}
+            >
+              It has been sent to the Super Admin.
+            </Typography>
+
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              justifyContent="center"
+            >
+              <Button
+                variant="outlined"
+                onClick={() =>
+                  router.push(
+                    "/teacher/inspection/history"
+                  )
+                }
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                }}
+              >
+                View History
+              </Button>
+
+              <Button
+                variant="contained"
+                onClick={startNew}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                }}
+              >
+                Start New Inspection
+              </Button>
+            </Stack>
+          </Paper>
+        </Box>
+      </Box>
     );
+  }
 
-  // ======================================================
-  // GROUP SUMMARY
-  // ======================================================
-
-  const groupParticipantCount = Array.isArray(task.participants)
-    ? task.participants.length
-    : 0;
+  /* =====================================================
+     MAIN PAGE
+  ===================================================== */
 
   return (
     <Box
       sx={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        bgcolor: "#f8f9fb",
+        bgcolor: "#faf9fb",
+        minHeight: "100vh",
       }}
     >
-      {/* ==================================================
-          GROUP / PARTICIPANTS INFO
-          ================================================== */}
-
-      {isGroup && (
-        <Box
-          sx={{
-            px: { xs: 1.25, sm: 2 },
-            py: 0.8,
-            bgcolor: "background.paper",
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            flexShrink: 0,
-          }}
-        >
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={1}
-            sx={{
-              minWidth: 0,
-            }}
-          >
-            <GroupOutlined
-              sx={{
-                fontSize: 18,
-                color: "primary.main",
-                flexShrink: 0,
-              }}
-            />
-
-            <Typography
-              variant="caption"
-              fontWeight={700}
-              noWrap
-              sx={{
-                minWidth: 0,
-              }}
-            >
-              Group conversation
-            </Typography>
-
-            <Chip
-              size="small"
-              label={`${groupParticipantCount} ${
-                groupParticipantCount === 1 ? "teacher" : "teachers"
-              }`}
-              sx={{
-                height: 22,
-                fontSize: 11,
-                fontWeight: 700,
-                ml: "auto",
-              }}
-            />
-          </Stack>
-
-          {/* Participant names */}
-          {task.participants?.length > 0 && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{
-                display: "block",
-                mt: 0.35,
-                ml: 3.4,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {task.participants
-                .map((participant) => participant?.name || "Teacher")
-                .join(", ")}
-            </Typography>
-          )}
-        </Box>
-      )}
-
-      {/* ==================================================
-          MESSAGE LIST
-          ================================================== */}
+      <Navbar />
 
       <Box
         sx={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          px: {
-            xs: 1.25,
-            sm: 2,
-            md: 2.5,
-          },
-          py: {
-            xs: 1.25,
-            sm: 2,
-          },
-
-          "&::-webkit-scrollbar": {
-            width: 6,
-          },
-
-          "&::-webkit-scrollbar-thumb": {
-            bgcolor: "rgba(0,0,0,0.15)",
-            borderRadius: 10,
-          },
+          maxWidth: 760,
+          mx: "auto",
+          p: { xs: 1.5, sm: 3 },
+          pb: 5,
         }}
       >
-        {messages.length === 0 ? (
-          <Box
+        <Stack spacing={2}>
+          {/* =================================================
+              HEADER
+          ================================================= */}
+
+          <Paper
+            elevation={0}
             sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              py: 4,
+              border: "1px solid #e5e7eb",
+              borderRadius: 2.5,
+              overflow: "hidden",
             }}
           >
             <Box
               sx={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                bgcolor: "action.hover",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                mb: 1.25,
+                p: 2.5,
+                background:
+                  "linear-gradient(135deg,#7e22ce,#4c1d95)",
+                color: "white",
               }}
             >
-              {isGroup ? (
-                <GroupOutlined
-                  sx={{
-                    fontSize: 24,
-                    color: "text.disabled",
-                  }}
-                />
-              ) : (
-                <ChatBubbleOutlineRounded
-                  sx={{
-                    fontSize: 24,
-                    color: "text.disabled",
-                  }}
-                />
-              )}
-            </Box>
-
-            <Typography variant="body2" fontWeight={600} color="text.secondary">
-              No messages yet
-            </Typography>
-
-            <Typography
-              variant="caption"
-              color="text.disabled"
-              sx={{
-                maxWidth: 250,
-                mt: 0.5,
-              }}
-            >
-              {isGroup
-                ? "Start the group conversation about this task"
-                : "Start the conversation about this task"}
-            </Typography>
-          </Box>
-        ) : (
-          messages.map((message, index) => {
-            const senderId = String(
-              message.sender?._id || message.sender || "",
-            );
-
-            const mine = senderId === String(myId);
-
-            const senderName =
-              message.senderName || message.sender?.name || "User";
-
-            const seenByOther =
-              mine && isMessageSeenByOthers(task, message, myId);
-
-            const showStatusTag =
-              mine && lastOwnMessage && message._id === lastOwnMessage._id;
-
-            // ------------------------------------------
-            // GROUP CONSECUTIVE MESSAGES
-            // ------------------------------------------
-
-            const previous = messages[index - 1];
-
-            const previousSenderId = previous
-              ? String(previous.sender?._id || previous.sender || "")
-              : null;
-
-            const grouped = previous && previousSenderId === senderId;
-
-            return (
-              <Fade
-                in
-                key={message._id || `${message.createdAt}-${index}`}
-                timeout={200}
+              <Stack
+                direction="row"
+                spacing={1.4}
+                alignItems="center"
               >
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: mine ? "flex-end" : "flex-start",
-                    mb: grouped ? 0.4 : 1.5,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      maxWidth: {
-                        xs: "84%",
-                        sm: "72%",
-                        md: "65%",
-                      },
-                    }}
+                <ReportProblemOutlined />
+
+                <Box>
+                  <Typography
+                    fontWeight={800}
+                    fontSize="1.15rem"
                   >
-                    {/* =================================
-                        SENDER HEADER
-                        ================================= */}
+                    Inspection Report
+                  </Typography>
 
-                    {!mine && (
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={0.65}
-                        sx={{
-                          ml: 1,
-                          mb: grouped ? 0.15 : 0.3,
-                        }}
-                      >
-                        {isGroup && !grouped && (
-                          <Avatar
-                            sx={{
-                              width: 20,
-                              height: 20,
-                              fontSize: 9,
-                              bgcolor: colorForName(senderName),
-                            }}
-                          >
-                            {initials(senderName)}
-                          </Avatar>
-                        )}
+                  <Typography
+                    variant="body2"
+                    sx={{ opacity: 0.9 }}
+                  >
+                    Add issues as you find them — this saves
+                    as a draft until you submit.
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+          </Paper>
 
-                        {!grouped && (
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{
-                              fontWeight: 700,
-                              fontSize: 10.5,
-                            }}
-                          >
-                            {senderName}
-                          </Typography>
-                        )}
-                      </Stack>
-                    )}
+          {/* Error */}
+          {error && (
+            <Alert
+              severity="error"
+              onClose={() => setError("")}
+            >
+              {error}
+            </Alert>
+          )}
 
-                    {/* =================================
-                        MESSAGE BUBBLE
-                        ================================= */}
+          {/* =================================================
+              ADD ISSUE
+          ================================================= */}
 
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 1.5, sm: 2.3 },
+              border: "1px solid #e2e8f0",
+              borderRadius: 2.5,
+              bgcolor: "#fff",
+            }}
+          >
+            <Typography
+              fontWeight={700}
+              mb={1.5}
+            >
+              Add an Issue
+            </Typography>
+
+            <Stack spacing={1.5}>
+              {/* Photo */}
+              <Box>
+                {photoPreview ? (
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    alignItems="center"
+                  >
                     <Box
                       sx={{
-                        bgcolor: mine ? "primary.main" : "#fff",
+                        position: "relative",
+                        cursor: "pointer",
+                      }}
+                      onClick={() =>
+                        openImage(photoPreview)
+                      }
+                    >
+                      <Avatar
+                        src={photoPreview}
+                        variant="rounded"
+                        sx={{
+                          width: 70,
+                          height: 70,
+                        }}
+                      />
 
-                        color: mine ? "white" : "text.primary",
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          inset: 0,
+                          borderRadius: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          bgcolor:
+                            "rgba(0,0,0,0.35)",
+                          opacity: 0,
+                          transition: "0.2s",
+                          "&:hover": {
+                            opacity: 1,
+                          },
+                        }}
+                      >
+                        <Visibility
+                          sx={{ color: "white" }}
+                        />
+                      </Box>
+                    </Box>
 
-                        px: {
-                          xs: 1.5,
-                          sm: 1.75,
-                        },
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                    >
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<Visibility />}
+                        onClick={() =>
+                          openImage(photoPreview)
+                        }
+                        sx={{
+                          textTransform: "none",
+                        }}
+                      >
+                        View
+                      </Button>
 
-                        py: {
-                          xs: 0.85,
-                          sm: 1,
-                        },
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={removeSelectedPhoto}
+                        sx={{
+                          textTransform: "none",
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </Stack>
+                  </Stack>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<AddAPhoto />}
+                    sx={{
+                      textTransform: "none",
+                    }}
+                  >
+                    Take / Choose Photo
 
-                        borderRadius: 2.5,
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) =>
+                        handlePhotoSelected(
+                          e.target.files?.[0]
+                        )
+                      }
+                    />
+                  </Button>
+                )}
+              </Box>
 
-                        borderTopRightRadius: mine ? (grouped ? 8 : 4) : 20,
+              {/* Problem */}
+              <VoiceTextField
+                label="Problem Name"
+                value={form.problemName}
+                onChange={updateField("problemName")}
+                required
+              />
 
-                        borderTopLeftRadius: mine ? 20 : grouped ? 8 : 4,
+              {/* Location + Direction */}
+              <Stack
+                direction={{
+                  xs: "column",
+                  sm: "row",
+                }}
+                spacing={1.5}
+              >
+                <VoiceTextField
+                  label="Location"
+                  value={form.location}
+                  onChange={updateField("location")}
+                />
 
-                        boxShadow: mine
-                          ? "0 1px 2px rgba(0,0,0,0.08)"
-                          : "0 1px 2px rgba(0,0,0,0.06)",
+                <VoiceTextField
+                  label="Direction (e.g. near main gate, 2nd floor)"
+                  value={form.direction}
+                  onChange={updateField("direction")}
+                />
+              </Stack>
 
-                        border: mine ? "none" : "1px solid #ececec",
+              {/* Broken Since */}
+              <TextField
+                label="Broken / noticed since"
+                size="small"
+                fullWidth
+                placeholder="e.g. 3 days, since Monday"
+                value={form.brokenSince}
+                onChange={(e) =>
+                  updateField("brokenSince")(
+                    e.target.value
+                  )
+                }
+              />
+
+              {/* Description */}
+              <VoiceTextField
+                label="Description"
+                value={form.description}
+                onChange={updateField("description")}
+                multiline
+                minRows={2}
+              />
+
+              {/* Voice */}
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight={700}
+                  sx={{
+                    display: "block",
+                    mb: 0.5,
+                  }}
+                >
+                  VOICE NOTE (optional)
+                </Typography>
+
+                <VoiceNoteRecorder
+                  onChange={(blob, duration) => {
+                    setVoiceBlob(blob);
+                    setVoiceDuration(duration);
+                  }}
+                />
+              </Box>
+
+              {/* Add */}
+              <Button
+                variant="contained"
+                onClick={handleAddIssue}
+                disabled={adding}
+                startIcon={
+                  adding ? (
+                    <CircularProgress
+                      size={16}
+                      color="inherit"
+                    />
+                  ) : null
+                }
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                  alignSelf: "flex-start",
+                }}
+              >
+                {adding
+                  ? "Adding..."
+                  : "Add Issue to Report"}
+              </Button>
+            </Stack>
+          </Paper>
+
+          {/* =================================================
+              ISSUES
+          ================================================= */}
+
+          {report?.issues?.length > 0 && (
+            <Paper
+              elevation={0}
+              sx={{
+                p: { xs: 1.5, sm: 2.3 },
+                border: "1px solid #e2e8f0",
+                borderRadius: 2.5,
+                bgcolor: "#fff",
+              }}
+            >
+              <Typography
+                fontWeight={700}
+                mb={1.5}
+              >
+                Issues in this report (
+                {report.issues.length})
+              </Typography>
+
+              <Stack
+                spacing={1.2}
+                divider={<Divider />}
+              >
+                {report.issues.map((issue) => (
+                  <Stack
+                    key={issue._id}
+                    direction="row"
+                    spacing={1.5}
+                    alignItems="flex-start"
+                  >
+                    {/* Issue Photo */}
+                    {issue.photo?.url && (
+                      <Tooltip title="View photo">
+                        <Box
+                          onClick={() =>
+                            openImage(
+                              issue.photo.url
+                            )
+                          }
+                          sx={{
+                            position: "relative",
+                            flexShrink: 0,
+                            cursor: "pointer",
+                            borderRadius: 1.5,
+                            overflow: "hidden",
+                            "&:hover .photo-overlay": {
+                              opacity: 1,
+                            },
+                          }}
+                        >
+                          <Avatar
+                            src={issue.photo.url}
+                            variant="rounded"
+                            sx={{
+                              width: 60,
+                              height: 60,
+                            }}
+                          />
+
+                          <Box
+                            className="photo-overlay"
+                            sx={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              bgcolor:
+                                "rgba(0,0,0,0.4)",
+                              opacity: 0,
+                              transition: "0.2s",
+                            }}
+                          >
+                            <Visibility
+                              sx={{
+                                color: "white",
+                                fontSize: 20,
+                              }}
+                            />
+                          </Box>
+                        </Box>
+                      </Tooltip>
+                    )}
+
+                    {/* Content */}
+                    <Box
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
                       }}
                     >
                       <Typography
-                        variant="body2"
-                        sx={{
-                          wordBreak: "break-word",
-
-                          whiteSpace: "pre-wrap",
-
-                          fontSize: {
-                            xs: "0.85rem",
-                            sm: "0.875rem",
-                          },
-
-                          lineHeight: 1.5,
-                        }}
+                        fontWeight={700}
+                        fontSize="0.9rem"
                       >
-                        {message.text}
+                        {issue.problemName}
                       </Typography>
+
+                      <Stack
+                        direction="row"
+                        spacing={0.6}
+                        flexWrap="wrap"
+                        useFlexGap
+                        sx={{ mt: 0.4 }}
+                      >
+                        {issue.location && (
+                          <Chip
+                            size="small"
+                            label={issue.location}
+                          />
+                        )}
+
+                        {issue.direction && (
+                          <Chip
+                            size="small"
+                            label={issue.direction}
+                          />
+                        )}
+
+                        {issue.brokenSince && (
+                          <Chip
+                            size="small"
+                            label={`Since: ${issue.brokenSince}`}
+                            color="warning"
+                            variant="outlined"
+                          />
+                        )}
+
+                        {issue.voiceNote?.url && (
+                          <Chip
+                            size="small"
+                            icon={
+                              <PlayArrow fontSize="small" />
+                            }
+                            label="Voice note"
+                          />
+                        )}
+                      </Stack>
+
+                      {issue.description && (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.4 }}
+                        >
+                          {issue.description}
+                        </Typography>
+                      )}
                     </Box>
 
-                    {/* =================================
-                        TIME + SENT / SEEN
-                        ================================= */}
-
-                    <MessageMeta mine={mine}>
-                      {message.createdAt && (
-                        <Typography
-                          variant="caption"
-                          color="text.disabled"
-                          sx={{
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {formatMessageTime(message.createdAt)}
-                        </Typography>
+                    {/* Delete */}
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        handleDeleteIssue(
+                          issue._id
+                        )
+                      }
+                      disabled={
+                        deletingId === issue._id
+                      }
+                      sx={{
+                        color: "error.main",
+                      }}
+                    >
+                      {deletingId === issue._id ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <Delete fontSize="small" />
                       )}
+                    </IconButton>
+                  </Stack>
+                ))}
+              </Stack>
 
-                      {showStatusTag && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.3,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {seenByOther ? (
-                            <>
-                              <DoneAll
-                                sx={{
-                                  fontSize: 13,
-                                  color: "primary.main",
-                                }}
-                              />
-
-                              {isGroup ? "Seen by all" : "Seen"}
-                            </>
-                          ) : (
-                            <>
-                              <Done
-                                sx={{
-                                  fontSize: 13,
-                                }}
-                              />
-                              Sent
-                            </>
-                          )}
-                        </Typography>
-                      )}
-                    </MessageMeta>
-                  </Box>
-                </Box>
-              </Fade>
-            );
-          })
-        )}
-
-        <div ref={bottomRef} />
+              {/* Submit */}
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={handleSubmitReport}
+                disabled={submitting}
+                startIcon={
+                  submitting ? (
+                    <CircularProgress
+                      size={16}
+                      color="inherit"
+                    />
+                  ) : (
+                    <Send />
+                  )
+                }
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                  mt: 2.5,
+                }}
+              >
+                {submitting
+                  ? "Submitting..."
+                  : "Submit Report"}
+              </Button>
+            </Paper>
+          )}
+        </Stack>
       </Box>
 
-      {/* ==================================================
-          COMPOSER
-          ================================================== */}
+      {/* =====================================================
+          IMAGE VIEWER
+      ===================================================== */}
 
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "flex-end",
-          gap: 1,
-          px: {
-            xs: 1.25,
-            sm: 2,
-          },
-          py: {
-            xs: 1,
-            sm: 1.25,
-          },
-          borderTop: "1px solid",
-          borderColor: "divider",
-          flexShrink: 0,
-          bgcolor: "background.paper",
-        }}
+      <Dialog
+        open={Boolean(viewImage)}
+        onClose={closeImage}
+        maxWidth="md"
+        fullWidth
       >
-        <TextField
-          inputRef={inputRef}
-          fullWidth
-          size="small"
-          multiline
-          maxRows={4}
-          placeholder={isGroup ? "Message the group..." : "Type a message..."}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
+        <Box
           sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 3,
-              bgcolor: "#f3f4f6",
-              fontSize: {
-                xs: "0.85rem",
-                sm: "0.9rem",
-              },
-            },
-          }}
-        />
-
-        <IconButton
-          color="primary"
-          onClick={sendMessage}
-          disabled={sending || !text.trim()}
-          aria-label="Send message"
-          sx={{
-            bgcolor: text.trim() ? "primary.main" : "action.disabledBackground",
-
-            color: text.trim() ? "white" : "action.disabled",
-
-            width: {
-              xs: 38,
-              sm: 42,
-            },
-
-            height: {
-              xs: 38,
-              sm: 42,
-            },
-
-            flexShrink: 0,
-
-            "&:hover": {
-              bgcolor: text.trim()
-                ? "primary.dark"
-                : "action.disabledBackground",
-            },
+            position: "relative",
+            bgcolor: "#111",
           }}
         >
-          {sending ? (
-            <CircularProgress size={18} color="inherit" />
-          ) : (
-            <Send sx={{ fontSize: 19 }} />
-          )}
-        </IconButton>
-      </Box>
-    </Box>
-  );
-}
+          <IconButton
+            onClick={closeImage}
+            sx={{
+              position: "absolute",
+              right: 8,
+              top: 8,
+              zIndex: 2,
+              bgcolor: "rgba(255,255,255,0.9)",
+              "&:hover": {
+                bgcolor: "white",
+              },
+            }}
+          >
+            <Close />
+          </IconButton>
 
-// ======================================================
-// MESSAGE META
-// ======================================================
-
-function MessageMeta({ mine, children }) {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.75,
-        justifyContent: mine ? "flex-end" : "flex-start",
-        mt: 0.3,
-        px: 0.5,
-      }}
-    >
-      {children}
+          <DialogContent
+            sx={{
+              p: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: {
+                xs: 300,
+                sm: 500,
+              },
+            }}
+          >
+            {viewImage && (
+              <Box
+                component="img"
+                src={viewImage}
+                alt="Inspection issue"
+                sx={{
+                  maxWidth: "100%",
+                  maxHeight: "75vh",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            )}
+          </DialogContent>
+        </Box>
+      </Dialog>
     </Box>
   );
 }
