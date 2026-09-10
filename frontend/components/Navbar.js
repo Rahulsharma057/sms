@@ -44,6 +44,9 @@ import {
   ChatBubbleOutline,
   CheckCircleOutline, DeleteOutline,
   SettingsOutlined,
+  AppsOutlined,
+  SwapHorizOutlined,
+  HomeOutlined,
 } from "@mui/icons-material";
 
 import Image from "next/image";
@@ -71,6 +74,21 @@ export default function Navbar() {
   const [visibleDynamicReports, setVisibleDynamicReports] = useState([]);
   const [reportsMenuAnchor, setReportsMenuAnchor] = useState(null);
   const [reportsDrawerOpen, setReportsDrawerOpen] = useState(false);
+
+  // =========================================================
+  // SSO PORTAL SWITCHER
+  // Only shown if this session came in via the portal handoff
+  // (see app/sso/page.js, which sets this localStorage key).
+  // =========================================================
+
+  const [portalUrl, setPortalUrl] = useState(null);
+  const [switchAnchor, setSwitchAnchor] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPortalUrl(localStorage.getItem("sso_portal_url"));
+    }
+  }, []);
 
   // =========================================================
   // NOTIFICATIONS
@@ -1157,6 +1175,69 @@ const getNotificationIcon = (type) => {
                     </Box>
                   </MenuItem>
                 ))}
+              </Menu>
+            </>
+          )}
+
+          {/* =====================================================
+              SSO PORTAL SWITCHER (only visible if logged in via portal)
+          ===================================================== */}
+
+          {portalUrl && (
+            <>
+              <IconButton
+                onClick={(e) => setSwitchAnchor(e.currentTarget)}
+                sx={{
+                  ml: { xs: 0.2, sm: 0.5 },
+                  color: BLUE,
+
+                  "&:hover": {
+                    bgcolor: "rgba(23, 43, 143, 0.06)",
+                  },
+                }}
+              >
+                <AppsOutlined />
+              </IconButton>
+
+              <Menu
+                anchorEl={switchAnchor}
+                open={!!switchAnchor}
+                onClose={() => setSwitchAnchor(null)}
+                PaperProps={{
+                  elevation: 4,
+                  sx: {
+                    mt: 1,
+                    minWidth: 220,
+                    borderRadius: 1.5,
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  },
+                }}
+              >
+                <MenuItem disabled sx={{ opacity: "1 !important" }}>
+                  <Typography fontWeight={700} fontSize="0.78rem" color="text.secondary">
+                    Signed in via Portal
+                  </Typography>
+                </MenuItem>
+
+                <Divider />
+
+                <MenuItem
+                  onClick={() => {
+                    window.location.href = portalUrl;
+                  }}
+                >
+                  <SwapHorizOutlined fontSize="small" sx={{ mr: 1.2, color: BLUE }} />
+                  Switch app
+                </MenuItem>
+
+                <MenuItem
+                  onClick={() => {
+                    window.location.href = `${portalUrl}/dashboard`;
+                  }}
+                >
+                  <HomeOutlined fontSize="small" sx={{ mr: 1.2, color: BLUE }} />
+                  Portal dashboard
+                </MenuItem>
               </Menu>
             </>
           )}

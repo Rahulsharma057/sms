@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -89,6 +88,11 @@ export function AuthProvider({ children }) {
 
     localStorage.setItem("token", data.token);
 
+    // This is a DIRECT login (typed on this app's own login page), not an
+    // SSO handoff from the portal - clear any leftover portal marker from
+    // a previous SSO session so the "Switch app" menu doesn't wrongly show.
+    localStorage.removeItem("sso_portal_url");
+
     setUser(data.user);
 
     // Push notification setup will automatically
@@ -111,6 +115,7 @@ export function AuthProvider({ children }) {
     } catch {}
 
     localStorage.removeItem("token");
+    localStorage.removeItem("sso_portal_url");
 
     setUser(null);
 
