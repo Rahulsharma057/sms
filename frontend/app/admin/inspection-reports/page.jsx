@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   Alert,
   Box,
+  Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Container,
@@ -25,13 +27,14 @@ import {
 
 import {
   DeleteOutline,
+  Download,
   ReportProblemOutlined,
   Visibility,
 } from "@mui/icons-material";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
-import api from "../../../lib/api";
+import api, { downloadInspectionReportPdf, downloadInspectionReportsBulkPdf } from "../../../lib/api";
 
 const ROWS_PER_PAGE = 15;
 
@@ -47,6 +50,11 @@ function AdminInspectionReportsInner() {
   const [total, setTotal] = useState(0);
 
   const [deleting, setDeleting] = useState(null);
+
+  // ---- Selection + PDF download state ----
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
 
   /* =====================================================
      LOAD REPORTS
@@ -77,6 +85,8 @@ function AdminInspectionReportsInner() {
         setPage(
           res.data?.pagination?.page || nextPage
         );
+
+        setSelectedIds([]);
       })
       .catch((err) => {
         setError(
@@ -96,6 +106,53 @@ function AdminInspectionReportsInner() {
   useEffect(() => {
     load(1);
   }, []);
+
+  /* =====================================================
+     SELECTION
+  ===================================================== */
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === reports.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(reports.map((r) => r._id));
+    }
+  };
+
+  /* =====================================================
+     DOWNLOAD
+  ===================================================== */
+
+  const handleDownloadOne = async (report) => {
+    setDownloadingId(report._id);
+    setError("");
+    try {
+      await downloadInspectionReportPdf(report._id, report.reportedBy?.name || "report");
+    } catch (err) {
+      setError(err.message || "Could not download PDF.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    if (!selectedIds.length) return;
+    setBulkDownloading(true);
+    setError("");
+    try {
+      await downloadInspectionReportsBulkPdf(selectedIds);
+    } catch (err) {
+      setError(err.message || "Could not download combined PDF.");
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
 
   /* =====================================================
      DELETE REPORT
@@ -169,9 +226,10 @@ function AdminInspectionReportsInner() {
         ================================================= */}
 
         <Stack
-          direction="row"
-          spacing={1.2}
-          alignItems="center"
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "stretch", sm: "center" }}
+          spacing={1.5}
           sx={{
             mb: {
               xs: 1.75,
@@ -179,72 +237,90 @@ function AdminInspectionReportsInner() {
             },
           }}
         >
-          <Box
+          <Stack direction="row" spacing={1.2} alignItems="center">
+            <Box
+              sx={{
+                width: {
+                  xs: 36,
+                  sm: 40,
+                },
+
+                height: {
+                  xs: 36,
+                  sm: 40,
+                },
+
+                borderRadius: 2,
+
+                bgcolor: "#1c28ce",
+
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                flexShrink: 0,
+              }}
+            >
+              <ReportProblemOutlined
+                sx={{
+                  color: "white",
+                  fontSize: {
+                    xs: 20,
+                    sm: 22,
+                  },
+                }}
+              />
+            </Box>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: {
+                    xs: 18,
+                    sm: 22,
+                  },
+
+                  fontWeight: 800,
+
+                  lineHeight: 1.25,
+                }}
+              >
+                Inspection Reports
+              </Typography>
+
+              <Typography
+                sx={{
+                  fontSize: {
+                    xs: 11,
+                    sm: 13,
+                  },
+
+                  color: "text.secondary",
+
+                  mt: 0.25,
+                }}
+              >
+                {total} submitted report
+                {total === 1 ? "" : "s"}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Button
+            variant="contained"
+            startIcon={bulkDownloading ? <CircularProgress size={16} color="inherit" /> : <Download />}
+            onClick={handleDownloadSelected}
+            disabled={selectedIds.length === 0 || bulkDownloading}
             sx={{
-              width: {
-                xs: 36,
-                sm: 40,
-              },
-
-              height: {
-                xs: 36,
-                sm: 40,
-              },
-
-              borderRadius: 2,
-
-              bgcolor: "#1c28ce",
-
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-
-              flexShrink: 0,
+              textTransform: "none",
+              fontWeight: 700,
+              alignSelf: { xs: "stretch", sm: "auto" },
             }}
           >
-            <ReportProblemOutlined
-              sx={{
-                color: "white",
-                fontSize: {
-                  xs: 20,
-                  sm: 22,
-                },
-              }}
-            />
-          </Box>
-
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              sx={{
-                fontSize: {
-                  xs: 18,
-                  sm: 22,
-                },
-
-                fontWeight: 800,
-
-                lineHeight: 1.25,
-              }}
-            >
-              Inspection Reports
-            </Typography>
-
-            <Typography
-              sx={{
-                fontSize: {
-                  xs: 11,
-                  sm: 13,
-                },
-
-                color: "text.secondary",
-
-                mt: 0.25,
-              }}
-            >
-              {total} submitted report
-              {total === 1 ? "" : "s"}
-            </Typography>
-          </Box>
+            {bulkDownloading
+              ? "Preparing PDF..."
+              : `Download Selected (${selectedIds.length}) as PDF`}
+          </Button>
         </Stack>
 
         {/* =================================================
@@ -258,6 +334,7 @@ function AdminInspectionReportsInner() {
               mb: 2,
               borderRadius: 1.5,
             }}
+            onClose={() => setError("")}
           >
             {error}
           </Alert>
@@ -348,7 +425,7 @@ function AdminInspectionReportsInner() {
               <Table
                 size="small"
                 sx={{
-                  minWidth: 700,
+                  minWidth: 760,
 
                   "& .MuiTableCell-root": {
                     borderColor: "#eef2f6",
@@ -377,6 +454,15 @@ function AdminInspectionReportsInner() {
                       },
                     }}
                   >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        size="small"
+                        checked={reports.length > 0 && selectedIds.length === reports.length}
+                        indeterminate={selectedIds.length > 0 && selectedIds.length < reports.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableCell>
+
                     <TableCell>
                       Submitted By
                     </TableCell>
@@ -420,6 +506,7 @@ function AdminInspectionReportsInner() {
                       <TableRow
                         key={r._id}
                         hover
+                        selected={selectedIds.includes(r._id)}
                         sx={{
                           "&:last-child td": {
                             borderBottom: 0,
@@ -431,6 +518,18 @@ function AdminInspectionReportsInner() {
                           },
                         }}
                       >
+                        {/* =================================================
+                            SELECT
+                        ================================================= */}
+
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            size="small"
+                            checked={selectedIds.includes(r._id)}
+                            onChange={() => toggleSelect(r._id)}
+                          />
+                        </TableCell>
+
                         {/* =================================================
                             SUBMITTED BY
                         ================================================= */}
@@ -552,6 +651,31 @@ function AdminInspectionReportsInner() {
                             justifyContent="flex-end"
                             alignItems="center"
                           >
+                            {/* DOWNLOAD PDF */}
+
+                            <Tooltip title="Download PDF">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  disabled={downloadingId === r._id}
+                                  onClick={() => handleDownloadOne(r)}
+                                  sx={{
+                                    width: 32,
+                                    height: 32,
+                                    color: "#7e22ce",
+                                    borderRadius: 1.5,
+                                    "&:hover": { bgcolor: "#f5f3ff" },
+                                  }}
+                                >
+                                  {downloadingId === r._id ? (
+                                    <CircularProgress size={16} color="inherit" />
+                                  ) : (
+                                    <Download fontSize="small" />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+
                             {/* VIEW */}
 
                             <Tooltip title="View report">

@@ -2,441 +2,100 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-
 import {
-  Alert,
-  Avatar,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Container,
-  Dialog,
-  DialogContent,
-  IconButton,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
+  Alert, Avatar, Box, Button, Chip, CircularProgress, Container, Dialog, DialogContent,
+  IconButton, Paper, Stack, TextField, Typography,
 } from "@mui/material";
-
-import {
-  ArrowBack,
-  CheckCircle,
-  Close,
-  ReportProblemOutlined,
-} from "@mui/icons-material";
-
+import { ArrowBack, CheckCircle, Download, Edit, Lock, LockOpen, ReportProblemOutlined } from "@mui/icons-material";
 import ProtectedRoute from "../../../../components/ProtectedRoute";
 import Navbar from "../../../../components/Navbar";
-import api from "../../../../lib/api";
+import api, { downloadInspectionReportPdf } from "../../../../lib/api";
+import IssueEditDialog from "../../../../components/IssueEditDialog";
 
-/* =========================================================
-   ISSUE CARD
-========================================================= */
+const dimensionsLabel = (issue) => {
+  if (!issue.length && !issue.height) return null;
+  const parts = [];
+  if (issue.length) parts.push(`L: ${issue.length}${issue.unit}`);
+  if (issue.height) parts.push(`H: ${issue.height}${issue.unit}`);
+  return parts.join(" × ");
+};
 
-function IssueCard({ issue, onResolve, resolving }) {
+function IssueCard({ issue, locked, onResolve, resolving, onEdit, onViewImage }) {
   const [remark, setRemark] = useState(issue.adminRemark || "");
-  const [imageOpen, setImageOpen] = useState(false);
 
   return (
-    <>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 1.25, sm: 1.8 },
-          border: "1px solid #e2e8f0",
-          borderRadius: 2.5,
-          backgroundColor: "#fff",
-        }}
-      >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={{ xs: 1.2, sm: 1.5 }}
-        >
-          {/* =================================================
-              ISSUE PHOTO
-          ================================================= */}
-          {issue.photo?.url && (
-            <Box
-              onClick={() => setImageOpen(true)}
-              sx={{
-                width: { xs: "100%", sm: 96 },
-                height: { xs: 190, sm: 96 },
-
-                flexShrink: 0,
-
-                borderRadius: 2,
-                overflow: "hidden",
-
-                cursor: "pointer",
-
-                position: "relative",
-
-                backgroundColor: "#f1f5f9",
-
-                "&:hover img": {
-                  transform: "scale(1.05)",
-                },
-
-                "&:hover .image-overlay": {
-                  opacity: 1,
-                },
-              }}
-            >
-              <Box
-                component="img"
-                src={issue.photo.url}
-                alt={issue.problemName || "Issue photo"}
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-
-                  transition:
-                    "transform 0.25s ease",
-                }}
+    <Paper elevation={0} sx={{ p: 1.8, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+        {issue.photos?.length > 0 && (
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
+            {issue.photos.map((p) => (
+              <Avatar
+                key={p.publicId}
+                src={p.url}
+                variant="rounded"
+                sx={{ width: 88, height: 88, cursor: "pointer" }}
+                onClick={() => onViewImage(p.url)}
               />
+            ))}
+          </Stack>
+        )}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
+            <Typography fontWeight={800}>{issue.problemName}</Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {!locked && (
+                <IconButton size="small" onClick={onEdit} sx={{ color: "#1e3a5f" }}>
+                  <Edit fontSize="small" />
+                </IconButton>
+              )}
+              <Chip size="small" label={issue.status === "resolved" ? "Resolved" : "Open"} color={issue.status === "resolved" ? "success" : "warning"} />
+            </Stack>
+          </Stack>
 
-              {/* Hover Overlay */}
-              <Box
-                className="image-overlay"
-                sx={{
-                  position: "absolute",
-                  inset: 0,
+          <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap sx={{ mt: 0.6 }}>
+            {issue.location && <Chip size="small" label={`Location: ${issue.location}`} />}
+            {issue.direction && <Chip size="small" label={`Direction: ${issue.direction}`} />}
+            {issue.brokenSince && <Chip size="small" label={`Since: ${issue.brokenSince}`} color="warning" variant="outlined" />}
+            {issue.quantity != null && <Chip size="small" label={`Qty: ${issue.quantity}`} />}
+            {dimensionsLabel(issue) && <Chip size="small" label={dimensionsLabel(issue)} />}
+          </Stack>
 
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+          {issue.description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
+              {issue.description}
+            </Typography>
+          )}
 
-                  backgroundColor:
-                    "rgba(0,0,0,0.35)",
-
-                  opacity: 0,
-
-                  transition:
-                    "opacity 0.2s ease",
-
-                  color: "#fff",
-
-                  fontSize: 13,
-                  fontWeight: 700,
-
-                  pointerEvents: "none",
-                }}
-              >
-                Click to enlarge
-              </Box>
+          {issue.voiceNote?.url && (
+            <Box sx={{ mt: 1 }}>
+              <audio controls src={issue.voiceNote.url} style={{ height: 32, width: "100%", maxWidth: 320 }} />
             </Box>
           )}
 
-          {/* =================================================
-              ISSUE CONTENT
-          ================================================= */}
-          <Box
-            sx={{
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            {/* Header */}
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="flex-start"
-              gap={1}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1.2 }} alignItems={{ sm: "center" }}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Admin remark (optional)"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+            />
+            <Button
+              size="small"
+              variant={issue.status === "resolved" ? "outlined" : "contained"}
+              onClick={() => onResolve(issue._id, issue.status === "resolved" ? "open" : "resolved", remark)}
+              disabled={resolving === issue._id}
+              startIcon={resolving === issue._id ? <CircularProgress size={14} color="inherit" /> : <CheckCircle fontSize="small" />}
+              sx={{ textTransform: "none", flexShrink: 0 }}
             >
-              <Typography
-                fontWeight={800}
-                sx={{
-                  fontSize: {
-                    xs: 14,
-                    sm: 15,
-                  },
-                  lineHeight: 1.35,
-                }}
-              >
-                {issue.problemName}
-              </Typography>
-
-              <Chip
-                size="small"
-                label={
-                  issue.status === "resolved"
-                    ? "Resolved"
-                    : "Open"
-                }
-                color={
-                  issue.status === "resolved"
-                    ? "success"
-                    : "warning"
-                }
-                sx={{
-                  height: 24,
-                  fontSize: 11,
-                  flexShrink: 0,
-                }}
-              />
-            </Stack>
-
-            {/* Location / Direction / Since */}
-            <Stack
-              direction="row"
-              spacing={0.6}
-              flexWrap="wrap"
-              useFlexGap
-              sx={{
-                mt: 0.6,
-              }}
-            >
-              {issue.location && (
-                <Chip
-                  size="small"
-                  label={`Location: ${issue.location}`}
-                  sx={{
-                    height: 24,
-                    fontSize: 11,
-                  }}
-                />
-              )}
-
-              {issue.direction && (
-                <Chip
-                  size="small"
-                  label={`Direction: ${issue.direction}`}
-                  sx={{
-                    height: 24,
-                    fontSize: 11,
-                  }}
-                />
-              )}
-
-              {issue.brokenSince && (
-                <Chip
-                  size="small"
-                  label={`Since: ${issue.brokenSince}`}
-                  color="warning"
-                  variant="outlined"
-                  sx={{
-                    height: 24,
-                    fontSize: 11,
-                  }}
-                />
-              )}
-            </Stack>
-
-            {/* Description */}
-            {issue.description && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  mt: 0.8,
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                }}
-              >
-                {issue.description}
-              </Typography>
-            )}
-
-            {/* Voice Note */}
-            {issue.voiceNote?.url && (
-              <Box sx={{ mt: 1 }}>
-                <audio
-                  controls
-                  src={issue.voiceNote.url}
-                  style={{
-                    height: 32,
-                    width: "100%",
-                    maxWidth: 320,
-                  }}
-                />
-              </Box>
-            )}
-
-            {/* Remark + Resolve */}
-            <Stack
-              direction={{
-                xs: "column",
-                sm: "row",
-              }}
-              spacing={1}
-              sx={{
-                mt: 1.2,
-              }}
-              alignItems={{
-                sm: "center",
-              }}
-            >
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="Admin remark (optional)"
-                value={remark}
-                onChange={(e) =>
-                  setRemark(e.target.value)
-                }
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 1.5,
-                    fontSize: 13,
-                  },
-                }}
-              />
-
-              <Button
-                size="small"
-                variant={
-                  issue.status === "resolved"
-                    ? "outlined"
-                    : "contained"
-                }
-                onClick={() =>
-                  onResolve(
-                    issue._id,
-                    issue.status === "resolved"
-                      ? "open"
-                      : "resolved",
-                    remark
-                  )
-                }
-                disabled={
-                  resolving === issue._id
-                }
-                startIcon={
-                  resolving === issue._id ? (
-                    <CircularProgress
-                      size={14}
-                      color="inherit"
-                    />
-                  ) : (
-                    <CheckCircle fontSize="small" />
-                  )
-                }
-                sx={{
-                  textTransform: "none",
-                  flexShrink: 0,
-                  minWidth: {
-                    sm: 125,
-                  },
-                  borderRadius: 1.5,
-                  fontWeight: 700,
-                }}
-              >
-                {issue.status === "resolved"
-                  ? "Mark Open"
-                  : "Mark Resolved"}
-              </Button>
-            </Stack>
-          </Box>
-        </Stack>
-      </Paper>
-
-      {/* =====================================================
-          LARGE IMAGE PREVIEW
-      ===================================================== */}
-      <Dialog
-        open={imageOpen}
-        onClose={() => setImageOpen(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: "rgba(10, 15, 25, 0.96)",
-            boxShadow:
-              "0 25px 80px rgba(0,0,0,0.5)",
-            borderRadius: {
-              xs: 0,
-              sm: 2,
-            },
-            overflow: "hidden",
-            m: {
-              xs: 0,
-              sm: 2,
-            },
-          },
-        }}
-      >
-        {/* Close Button */}
-        <IconButton
-          onClick={() => setImageOpen(false)}
-          sx={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            zIndex: 5,
-
-            width: 38,
-            height: 38,
-
-            color: "#fff",
-            backgroundColor:
-              "rgba(0,0,0,0.55)",
-
-            "&:hover": {
-              backgroundColor:
-                "rgba(0,0,0,0.75)",
-            },
-          }}
-        >
-          <Close />
-        </IconButton>
-
-        <DialogContent
-          sx={{
-            p: {
-              xs: 1,
-              sm: 2,
-            },
-
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-
-            minHeight: {
-              xs: "100vh",
-              sm: "70vh",
-            },
-          }}
-        >
-          <Box
-            component="img"
-            src={issue.photo?.url}
-            alt={
-              issue.problemName ||
-              "Inspection issue"
-            }
-            sx={{
-              display: "block",
-
-              width: "auto",
-              height: "auto",
-
-              maxWidth: "100%",
-              maxHeight: {
-                xs: "92vh",
-                sm: "80vh",
-              },
-
-              objectFit: "contain",
-
-              borderRadius: {
-                xs: 0,
-                sm: 1.5,
-              },
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+              {issue.status === "resolved" ? "Mark Open" : "Mark Resolved"}
+            </Button>
+          </Stack>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
-
-/* =========================================================
-   DETAIL PAGE
-========================================================= */
 
 function AdminInspectionReportDetailInner() {
   const { id } = useParams();
@@ -446,50 +105,63 @@ function AdminInspectionReportDetailInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [resolving, setResolving] = useState(null);
+  const [lockToggling, setLockToggling] = useState(false);
+  const [editingIssue, setEditingIssue] = useState(null);
+  const [viewImage, setViewImage] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const load = () => {
     setLoading(true);
-
     api
       .get(`/inspection-reports/${id}`)
       .then((res) => setReport(res.data))
-      .catch((err) =>
-        setError(
-          err?.response?.data?.message ||
-            "Could not load this report."
-        )
-      )
+      .catch((err) => setError(err?.response?.data?.message || "Could not load this report."))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    if (id) load();
-  }, [id]);
+  useEffect(() => { if (id) load(); }, [id]);
 
-  const handleResolve = async (
-    issueId,
-    status,
-    adminRemark
-  ) => {
+  const handleResolve = async (issueId, status, adminRemark) => {
     setResolving(issueId);
-
     try {
-      const res = await api.patch(
-        `/inspection-reports/${id}/issues/${issueId}/status`,
-        {
-          status,
-          adminRemark,
-        }
-      );
-
+      const res = await api.patch(`/inspection-reports/${id}/issues/${issueId}/status`, { status, adminRemark });
       setReport(res.data);
     } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          "Could not update this issue."
-      );
+      setError(err?.response?.data?.message || "Could not update this issue.");
     } finally {
       setResolving(null);
+    }
+  };
+
+  const toggleLock = async () => {
+    const nextLocked = !report.locked;
+    const confirmed = window.confirm(
+      nextLocked
+        ? "Lock this report? No one (including you) will be able to edit its issues after this."
+        : "Unlock this report so it can be edited again?",
+    );
+    if (!confirmed) return;
+
+    setLockToggling(true);
+    try {
+      const res = await api.patch(`/inspection-reports/${id}/lock`, { locked: nextLocked });
+      setReport(res.data);
+    } catch (err) {
+      setError(err?.response?.data?.message || "Could not update the lock status.");
+    } finally {
+      setLockToggling(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    setError("");
+    try {
+      await downloadInspectionReportPdf(report._id, report.reportedBy?.name || "report");
+    } catch (err) {
+      setError(err.message || "Could not download PDF.");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -497,14 +169,7 @@ function AdminInspectionReportDetailInner() {
     return (
       <Box>
         <Navbar />
-
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            py: 8,
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
           <CircularProgress />
         </Box>
       </Box>
@@ -512,155 +177,97 @@ function AdminInspectionReportDetailInner() {
   }
 
   return (
-    <Box
-      sx={{
-        bgcolor: "#faf9fb",
-        minHeight: "100vh",
-      }}
-    >
+    <Box sx={{ bgcolor: "#faf9fb", minHeight: "100vh" }}>
       <Navbar />
-
-      <Container
-        maxWidth="md"
-        sx={{
-          py: {
-            xs: 2,
-            sm: 3,
-          },
-          px: {
-            xs: 1.5,
-            sm: 2,
-          },
-        }}
-      >
-        {/* =================================================
-            PAGE HEADER
-        ================================================= */}
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          sx={{
-            mb: {
-              xs: 1.75,
-              sm: 2.5,
-            },
-          }}
-        >
-          <IconButton
-            size="small"
-            onClick={() =>
-              router.push(
-                "/admin/inspection-reports"
-              )
-            }
-          >
+      <Container maxWidth="md" sx={{ py: 3 }}>
+        <Stack direction="row" spacing={1.2} alignItems="center" sx={{ mb: 2.5 }} flexWrap="wrap" useFlexGap>
+          <IconButton onClick={() => router.push("/admin/inspection-reports")}>
             <ArrowBack />
           </IconButton>
-
-          <Box
-            sx={{
-              width: {
-                xs: 36,
-                sm: 40,
-              },
-              height: {
-                xs: 36,
-                sm: 40,
-              },
-
-              borderRadius: 1.75,
-
-              bgcolor: "#1c28ce",
-
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-
-              flexShrink: 0,
-            }}
-          >
-            <ReportProblemOutlined
-              sx={{
-                color: "white",
-                fontSize: {
-                  xs: 20,
-                  sm: 22,
-                },
-              }}
-            />
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: "#1c28ce", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ReportProblemOutlined sx={{ color: "white", fontSize: 22 }} />
           </Box>
-
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              sx={{
-                fontSize: {
-                  xs: 17,
-                  sm: 20,
-                },
-                fontWeight: 800,
-                lineHeight: 1.25,
-
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {report?.reportedBy?.name}'s Inspection
-            </Typography>
-
-            <Typography
-              sx={{
-                fontSize: {
-                  xs: 11,
-                  sm: 12,
-                },
-                color: "text.secondary",
-                mt: 0.2,
-              }}
-            >
-              {report?.submittedAt &&
-                new Date(
-                  report.submittedAt
-                ).toLocaleString("en-IN")}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="h5" fontWeight={800} noWrap>{report?.reportedBy?.name}'s Inspection</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {report?.submittedAt && new Date(report.submittedAt).toLocaleString("en-IN")}
             </Typography>
           </Box>
+          {report && (
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                startIcon={downloadingPdf ? <CircularProgress size={16} /> : <Download />}
+                sx={{ textTransform: "none", fontWeight: 700 }}
+              >
+                {downloadingPdf ? "Preparing..." : "Download PDF"}
+              </Button>
+
+              <Button
+                variant={report.locked ? "outlined" : "contained"}
+                color={report.locked ? "inherit" : "error"}
+                onClick={toggleLock}
+                disabled={lockToggling}
+                startIcon={
+                  lockToggling ? <CircularProgress size={16} color="inherit" /> : report.locked ? <LockOpen /> : <Lock />
+                }
+                sx={{ textTransform: "none", fontWeight: 700 }}
+              >
+                {lockToggling ? "Updating..." : report.locked ? "Unlock Report" : "Lock Report"}
+              </Button>
+            </Stack>
+          )}
         </Stack>
 
-        {/* Error */}
-        {error && (
-          <Alert
-            severity="error"
-            sx={{
-              mb: 2,
-              borderRadius: 1.5,
-            }}
-          >
-            {error}
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
+
+        {report?.locked && (
+          <Alert severity="info" icon={<Lock fontSize="small" />} sx={{ mb: 2 }}>
+            This report is locked — issues can no longer be edited by you or the teacher.
           </Alert>
         )}
 
-        {/* Issues */}
         <Stack spacing={1.5}>
-          {(report?.issues || []).map(
-            (issue) => (
-              <IssueCard
-                key={issue._id}
-                issue={issue}
-                onResolve={handleResolve}
-                resolving={resolving}
-              />
-            )
-          )}
+          {(report?.issues || []).map((issue) => (
+            <IssueCard
+              key={issue._id}
+              issue={issue}
+              locked={Boolean(report.locked)}
+              onResolve={handleResolve}
+              resolving={resolving}
+              onEdit={() => setEditingIssue(issue)}
+              onViewImage={setViewImage}
+            />
+          ))}
         </Stack>
       </Container>
+
+      <IssueEditDialog
+        open={Boolean(editingIssue)}
+        onClose={() => setEditingIssue(null)}
+        reportId={report?._id}
+        issue={editingIssue}
+        onSaved={(updatedReport) => setReport(updatedReport)}
+      />
+
+      <Dialog open={Boolean(viewImage)} onClose={() => setViewImage(null)} maxWidth="md" fullWidth>
+        <DialogContent sx={{ p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
+          {viewImage && (
+            <Box
+              component="img"
+              src={viewImage}
+              alt="Inspection issue"
+              onClick={() => setViewImage(null)}
+              sx={{ display: "block", maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", cursor: "pointer" }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
-
-/* =========================================================
-   PROTECTED PAGE
-========================================================= */
 
 export default function AdminInspectionReportDetailPage() {
   return (

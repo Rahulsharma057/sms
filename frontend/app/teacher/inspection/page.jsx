@@ -13,6 +13,7 @@ import {
   CircularProgress,
   Divider,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -21,6 +22,7 @@ import {
 import {
   AddAPhoto,
   CheckCircle,
+  Close,
   Delete,
   Edit,
   PlayArrow,
@@ -31,6 +33,9 @@ import api from "../../../lib/api";
 import Navbar from "../../../components/Navbar";
 import VoiceTextField from "../../../components/VoiceTextField";
 import VoiceNoteRecorder from "../../../components/VoiceNoteRecorder";
+import { compressImage } from "../../../utils/compressImage";
+
+const UNITS = ["ft", "m", "in", "cm"];
 
 const EMPTY_ISSUE_FORM = {
   problemName: "",
@@ -38,6 +43,10 @@ const EMPTY_ISSUE_FORM = {
   direction: "",
   brokenSince: "",
   description: "",
+  quantity: "",
+  length: "",
+  height: "",
+  unit: "ft",
 };
 
 export default function InspectionReportPage() {
@@ -49,8 +58,15 @@ export default function InspectionReportPage() {
   const [success, setSuccess] = useState(false);
 
   const [form, setForm] = useState(EMPTY_ISSUE_FORM);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+
+  // New photos being added (File objects, already compressed)
+  const [newPhotoFiles, setNewPhotoFiles] = useState([]);
+  const [newPhotoPreviews, setNewPhotoPreviews] = useState([]);
+
+  // When editing an existing issue: its current photos + which were removed
+  const [existingPhotos, setExistingPhotos] = useState([]);
+  const [removedPhotoIds, setRemovedPhotoIds] = useState([]);
+
   const [voiceBlob, setVoiceBlob] = useState(null);
   const [voiceDuration, setVoiceDuration] = useState(0);
 
@@ -59,6 +75,7 @@ export default function InspectionReportPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [viewImage, setViewImage] = useState(null);
+  const [compressing, setCompressing] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -81,10 +98,29 @@ export default function InspectionReportPage() {
 
   const updateField = (key) => (value) => setForm((p) => ({ ...p, [key]: value }));
 
-  const handlePhotoSelected = (file) => {
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+  const handlePhotosSelected = async (files) => {
+    const fileArr = Array.from(files || []);
+    if (!fileArr.length) return;
+
+    setCompressing(true);
+    try {
+      const compressed = await Promise.all(fileArr.map((f) => compressImage(f)));
+      setNewPhotoFiles((prev) => [...prev, ...compressed]);
+      setNewPhotoPreviews((prev) => [...prev, ...compressed.map((f) => URL.createObjectURL(f))]);
+    } finally {
+      setCompressing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeNewPhoto = (index) => {
+    setNewPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setNewPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingPhoto = (publicId) => {
+    setExistingPhotos((prev) => prev.filter((p) => p.publicId !== publicId));
+    setRemovedPhotoIds((prev) => [...prev, publicId]);
   };
 
   const handleEditIssue = (issue) => {
@@ -97,24 +133,21 @@ export default function InspectionReportPage() {
       direction: issue.direction || "",
       brokenSince: issue.brokenSince || "",
       description: issue.description || "",
+      quantity: issue.quantity ?? "",
+      length: issue.length ?? "",
+      height: issue.height ?? "",
+      unit: issue.unit || "ft",
     });
 
-    // Existing photo can be replaced by selecting a new photo.
-    setPhotoFile(null);
-    setPhotoPreview(issue.photo?.url || null);
+    setExistingPhotos(issue.photos || []);
+    setRemovedPhotoIds([]);
+    setNewPhotoFiles([]);
+    setNewPhotoPreviews([]);
 
-    // Existing voice note stays unchanged unless a new recording is made.
     setVoiceBlob(null);
     setVoiceDuration(issue.voiceNote?.durationSeconds || 0);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
@@ -124,8 +157,10 @@ export default function InspectionReportPage() {
 
   const resetIssueForm = () => {
     setForm(EMPTY_ISSUE_FORM);
-    setPhotoFile(null);
-    setPhotoPreview(null);
+    setNewPhotoFiles([]);
+    setNewPhotoPreviews([]);
+    setExistingPhotos([]);
+    setRemovedPhotoIds([]);
     setVoiceBlob(null);
     setVoiceDuration(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -140,38 +175,32 @@ export default function InspectionReportPage() {
     }
 
     setAdding(true);
-
     try {
       const formData = new FormData();
-
       formData.append("problemName", form.problemName.trim());
       formData.append("location", form.location.trim());
       formData.append("direction", form.direction.trim());
       formData.append("brokenSince", form.brokenSince.trim());
       formData.append("description", form.description.trim());
+      formData.append("quantity", form.quantity);
+      formData.append("length", form.length);
+      formData.append("height", form.height);
+      formData.append("unit", form.unit);
 
-      if (photoFile) {
-        formData.append("photo", photoFile);
-      }
+      newPhotoFiles.forEach((file) => formData.append("photos", file));
 
       if (voiceBlob) {
         formData.append("voiceNote", voiceBlob, "voice-note.webm");
-        formData.append(
-          "voiceNoteDuration",
-          String(voiceDuration)
-        );
+        formData.append("voiceNoteDuration", String(voiceDuration));
       }
 
-      // EDIT EXISTING ISSUE
       if (editingId && report?._id) {
+        if (removedPhotoIds.length) formData.append("removePhotoIds", JSON.stringify(removedPhotoIds));
+
         const res = await api.patch(
           `/inspection-reports/${report._id}/issues/${editingId}`,
           formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
+          { headers: { "Content-Type": "multipart/form-data" } },
         );
 
         setReport(res.data);
@@ -180,28 +209,16 @@ export default function InspectionReportPage() {
         return;
       }
 
-      // ADD NEW ISSUE
-      if (report?._id) {
-        formData.append("reportId", report._id);
-      }
+      if (report?._id) formData.append("reportId", report._id);
 
-      const res = await api.post(
-        "/inspection-reports/issues",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const res = await api.post("/inspection-reports/issues", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       setReport(res.data);
       resetIssueForm();
     } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          "Could not save this issue."
-      );
+      setError(err?.response?.data?.message || "Could not save this issue.");
     } finally {
       setAdding(false);
     }
@@ -230,7 +247,7 @@ export default function InspectionReportPage() {
       return;
     }
     const confirmed = window.confirm(
-      `Submit this report with ${report.issues.length} issue(s)? You won't be able to edit it after submitting.`,
+      `Submit this report with ${report.issues.length} issue(s)?`,
     );
     if (!confirmed) return;
 
@@ -256,6 +273,14 @@ export default function InspectionReportPage() {
     loadDraft();
   };
 
+  const dimensionsLabel = (issue) => {
+    if (!issue.length && !issue.height) return null;
+    const parts = [];
+    if (issue.length) parts.push(`L: ${issue.length}${issue.unit}`);
+    if (issue.height) parts.push(`H: ${issue.height}${issue.unit}`);
+    return parts.join(" × ");
+  };
+
   if (loading) {
     return (
       <Box>
@@ -276,7 +301,7 @@ export default function InspectionReportPage() {
             <CheckCircle sx={{ fontSize: 46, color: "#7e22ce", mb: 1 }} />
             <Typography fontWeight={800} mb={0.6}>Inspection report submitted</Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              It has been sent to the Super Admin.
+              It has been sent to the Super Admin. You can still edit it until an admin locks it.
             </Typography>
             <Stack direction="row" spacing={1} justifyContent="center">
               <Button variant="outlined" onClick={() => router.push("/teacher/inspection/history")} sx={{ textTransform: "none" }}>
@@ -314,25 +339,10 @@ export default function InspectionReportPage() {
           {error && <Alert severity="error" onClose={() => setError("")}>{error}</Alert>}
 
           <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.3 }, border: "1px solid #e2e8f0", borderRadius: 2.5 }}>
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              mb={1.5}
-            >
-              <Typography fontWeight={700}>
-                {editingId ? "Edit Issue" : "Add an Issue"}
-              </Typography>
-
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Typography fontWeight={700}>{editingId ? "Edit Issue" : "Add an Issue"}</Typography>
               {editingId && (
-                <Button
-                  size="small"
-                  onClick={cancelEdit}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 700,
-                  }}
-                >
+                <Button size="small" onClick={cancelEdit} sx={{ textTransform: "none", fontWeight: 700 }}>
                   Cancel Edit
                 </Button>
               )}
@@ -340,92 +350,63 @@ export default function InspectionReportPage() {
 
             <Stack spacing={1.5}>
               <Box>
-                {photoPreview ? (
-                  <Stack
-                    direction="row"
-                    spacing={1.2}
-                    alignItems="center"
-                    flexWrap="wrap"
-                    useFlexGap
-                  >
-                    <Avatar
-                      src={photoPreview}
-                      variant="rounded"
-                      sx={{
-                        width: 64,
-                        height: 64,
-                        cursor: "pointer",
-                      }}
-                      onClick={() => setViewImage(photoPreview)}
-                    />
-
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      component="label"
-                      startIcon={<AddAPhoto />}
-                      sx={{
-                        textTransform: "none",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Replace Photo
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        hidden
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) =>
-                          handlePhotoSelected(e.target.files?.[0])
-                        }
+                <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: "block", mb: 0.5 }}>
+                  PHOTOS
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {existingPhotos.map((p) => (
+                    <Box key={p.publicId} sx={{ position: "relative" }}>
+                      <Avatar
+                        src={p.url}
+                        variant="rounded"
+                        sx={{ width: 64, height: 64, cursor: "pointer" }}
+                        onClick={() => setViewImage(p.url)}
                       />
-                    </Button>
-
-                    {photoFile && (
-                      <Button
+                      <IconButton
                         size="small"
-                        color="error"
-                        onClick={() => {
-                          setPhotoFile(null);
-                          setPhotoPreview(
-                            editingId
-                              ? report?.issues?.find(
-                                  (i) => i._id === editingId
-                                )?.photo?.url || null
-                              : null
-                          );
-
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = "";
-                          }
-                        }}
-                        sx={{ textTransform: "none" }}
+                        onClick={() => removeExistingPhoto(p.publicId)}
+                        sx={{ position: "absolute", top: -8, right: -8, bgcolor: "white", boxShadow: 1, "&:hover": { bgcolor: "#fee2e2" } }}
                       >
-                        Cancel New Photo
-                      </Button>
-                    )}
-                  </Stack>
-                ) : (
+                        <Close sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                  {newPhotoPreviews.map((url, i) => (
+                    <Box key={url} sx={{ position: "relative" }}>
+                      <Avatar
+                        src={url}
+                        variant="rounded"
+                        sx={{ width: 64, height: 64, border: "2px solid", borderColor: "success.main", cursor: "pointer" }}
+                        onClick={() => setViewImage(url)}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => removeNewPhoto(i)}
+                        sx={{ position: "absolute", top: -8, right: -8, bgcolor: "white", boxShadow: 1 }}
+                      >
+                        <Close sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                  ))}
                   <Button
                     variant="outlined"
                     component="label"
-                    startIcon={<AddAPhoto />}
-                    sx={{ textTransform: "none" }}
+                    startIcon={compressing ? <CircularProgress size={14} /> : <AddAPhoto />}
+                    disabled={compressing}
+                    sx={{ textTransform: "none", height: 64 }}
                   >
-                    Take / Choose Photo
+                    {compressing ? "Preparing..." : "Add Photo(s)"}
                     <input
                       ref={fileInputRef}
                       type="file"
                       hidden
+                      multiple
                       accept="image/*"
                       capture="environment"
-                      onChange={(e) =>
-                        handlePhotoSelected(e.target.files?.[0])
-                      }
+                      onChange={(e) => handlePhotosSelected(e.target.files)}
                     />
                   </Button>
-                )}
+                </Stack>
               </Box>
 
               <VoiceTextField label="Problem Name" value={form.problemName} onChange={updateField("problemName")} required />
@@ -447,6 +428,48 @@ export default function InspectionReportPage() {
                 value={form.brokenSince}
                 onChange={(e) => updateField("brokenSince")(e.target.value)}
               />
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  placeholder="optional"
+                  value={form.quantity}
+                  onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))}
+                />
+                <TextField
+                  label="Length"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  placeholder="optional"
+                  value={form.length}
+                  onChange={(e) => setForm((p) => ({ ...p, length: e.target.value }))}
+                />
+                <TextField
+                  label="Height"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  placeholder="optional"
+                  value={form.height}
+                  onChange={(e) => setForm((p) => ({ ...p, height: e.target.value }))}
+                />
+                <TextField
+                  select
+                  label="Unit"
+                  size="small"
+                  sx={{ minWidth: 90 }}
+                  value={form.unit}
+                  onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
+                >
+                  {UNITS.map((u) => (
+                    <MenuItem key={u} value={u}>{u}</MenuItem>
+                  ))}
+                </TextField>
+              </Stack>
 
               <VoiceTextField
                 label="Description"
@@ -471,29 +494,13 @@ export default function InspectionReportPage() {
               <Button
                 variant="contained"
                 onClick={handleAddIssue}
-                disabled={adding}
-                startIcon={
-                  adding ? (
-                    <CircularProgress size={16} color="inherit" />
-                  ) : editingId ? (
-                    <Edit />
-                  ) : (
-                    <AddAPhoto />
-                  )
-                }
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 700,
-                  alignSelf: "flex-start",
-                }}
+                disabled={adding || compressing}
+                startIcon={adding ? <CircularProgress size={16} color="inherit" /> : editingId ? <Edit /> : null}
+                sx={{ textTransform: "none", fontWeight: 700, alignSelf: "flex-start" }}
               >
                 {adding
-                  ? editingId
-                    ? "Updating..."
-                    : "Adding..."
-                  : editingId
-                    ? "Update Issue"
-                    : "Add Issue to Report"}
+                  ? editingId ? "Updating..." : "Adding..."
+                  : editingId ? "Update Issue" : "Add Issue to Report"}
               </Button>
             </Stack>
           </Paper>
@@ -506,32 +513,33 @@ export default function InspectionReportPage() {
               <Stack spacing={1.2} divider={<Divider />}>
                 {report.issues.map((issue) => (
                   <Stack key={issue._id} direction="row" spacing={1.5} alignItems="flex-start">
-                    {issue.photo?.url && (
-                      <Avatar
-                        src={issue.photo.url}
-                        variant="rounded"
-                        sx={{
-                          width: 56,
-                          height: 56,
-                          flexShrink: 0,
-                          cursor: "pointer",
-                        }}
-                        onClick={() =>
-                          setViewImage(issue.photo.url)
-                        }
-                      />
+                    {issue.photos?.length > 0 && (
+                      <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                        {issue.photos.slice(0, 2).map((p) => (
+                          <Avatar
+                            key={p.publicId}
+                            src={p.url}
+                            variant="rounded"
+                            sx={{ width: 56, height: 56, cursor: "pointer" }}
+                            onClick={() => setViewImage(p.url)}
+                          />
+                        ))}
+                        {issue.photos.length > 2 && (
+                          <Avatar variant="rounded" sx={{ width: 56, height: 56, bgcolor: "grey.200", color: "text.secondary", fontSize: 12 }}>
+                            +{issue.photos.length - 2}
+                          </Avatar>
+                        )}
+                      </Stack>
                     )}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography fontWeight={700} fontSize="0.9rem">{issue.problemName}</Typography>
                       <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap sx={{ mt: 0.4 }}>
                         {issue.location && <Chip size="small" label={issue.location} />}
                         {issue.direction && <Chip size="small" label={issue.direction} />}
-                        {issue.brokenSince && (
-                          <Chip size="small" label={`Since: ${issue.brokenSince}`} color="warning" variant="outlined" />
-                        )}
-                        {issue.voiceNote?.url && (
-                          <Chip size="small" icon={<PlayArrow fontSize="small" />} label="Voice note" />
-                        )}
+                        {issue.brokenSince && <Chip size="small" label={`Since: ${issue.brokenSince}`} color="warning" variant="outlined" />}
+                        {issue.quantity != null && <Chip size="small" label={`Qty: ${issue.quantity}`} />}
+                        {dimensionsLabel(issue) && <Chip size="small" label={dimensionsLabel(issue)} />}
+                        {issue.voiceNote?.url && <Chip size="small" icon={<PlayArrow fontSize="small" />} label="Voice note" />}
                       </Stack>
                       {issue.description && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>
@@ -539,39 +547,12 @@ export default function InspectionReportPage() {
                         </Typography>
                       )}
                     </Box>
-                    <Stack
-                      direction="row"
-                      spacing={0.2}
-                      sx={{ flexShrink: 0 }}
-                    >
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditIssue(issue)}
-                        disabled={
-                          deletingId === issue._id
-                        }
-                        sx={{ color: "#1e3a5f" }}
-                        aria-label="Edit issue"
-                      >
+                    <Stack direction="row" spacing={0.2} sx={{ flexShrink: 0 }}>
+                      <IconButton size="small" onClick={() => handleEditIssue(issue)} disabled={deletingId === issue._id} sx={{ color: "#1e3a5f" }}>
                         <Edit fontSize="small" />
                       </IconButton>
-
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleDeleteIssue(issue._id)
-                        }
-                        disabled={
-                          deletingId === issue._id
-                        }
-                        sx={{ color: "error.main" }}
-                        aria-label="Delete issue"
-                      >
-                        {deletingId === issue._id ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <Delete fontSize="small" />
-                        )}
+                      <IconButton size="small" onClick={() => handleDeleteIssue(issue._id)} disabled={deletingId === issue._id} sx={{ color: "error.main" }}>
+                        {deletingId === issue._id ? <CircularProgress size={16} /> : <Delete fontSize="small" />}
                       </IconButton>
                     </Stack>
                   </Stack>
@@ -593,34 +574,15 @@ export default function InspectionReportPage() {
         </Stack>
       </Box>
 
-      <Dialog
-        open={Boolean(viewImage)}
-        onClose={() => setViewImage(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogContent
-          sx={{
-            p: { xs: 1, sm: 2 },
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "#000",
-          }}
-        >
+      <Dialog open={Boolean(viewImage)} onClose={() => setViewImage(null)} maxWidth="md" fullWidth>
+        <DialogContent sx={{ p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
           {viewImage && (
             <Box
               component="img"
               src={viewImage}
               alt="Inspection issue"
               onClick={() => setViewImage(null)}
-              sx={{
-                display: "block",
-                maxWidth: "100%",
-                maxHeight: "80vh",
-                objectFit: "contain",
-                cursor: "pointer",
-              }}
+              sx={{ display: "block", maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", cursor: "pointer" }}
             />
           )}
         </DialogContent>
