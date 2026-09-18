@@ -77,6 +77,14 @@ export default function Navbar() {
   const [reportsDrawerOpen, setReportsDrawerOpen] = useState(false);
 
   // =========================================================
+  // ATTENDANCE — TEACHER'S ASSIGNED BATCHES
+  // =========================================================
+
+  const [myBatches, setMyBatches] = useState([]);
+  const [batchesMenuAnchor, setBatchesMenuAnchor] = useState(null);
+  const [batchesDrawerOpen, setBatchesDrawerOpen] = useState(false);
+
+  // =========================================================
   // SSO PORTAL SWITCHER
   // =========================================================
 
@@ -175,6 +183,19 @@ export default function Navbar() {
     api
       .get("/dynamic-reports/visible")
       .then((res) => setVisibleDynamicReports(res.data || []))
+      .catch(() => {});
+  }, [user]);
+
+  // =========================================================
+  // LOAD MY BATCHES (for the Attendance dropdown)
+  // =========================================================
+
+  useEffect(() => {
+    if (!user || user.role === "superadmin") return;
+
+    api
+      .get("/batches/mine")
+      .then((res) => setMyBatches(res.data || []))
       .catch(() => {});
   }, [user]);
 
@@ -445,6 +466,8 @@ export default function Navbar() {
       href: "/admin/issues",
       icon: <ReportProblem />,
     },
+    { label: "Attendance Config", href: "/admin/config", icon: <People /> },
+    { label: "Attendance", href: "/admin/attendance", icon: <ChecklistRtl /> },
     {
       label: "Tasks",
       href: "/admin/tasks",
@@ -474,6 +497,8 @@ export default function Navbar() {
   const showReportsMenu =
     user.role !== "superadmin" && visibleDynamicReports.length > 0;
 
+  const showBatchesMenu = user.role !== "superadmin" && myBatches.length > 0;
+
   const goToForm = (slug) => {
     router.push(`/forms/${slug}`);
 
@@ -487,6 +512,14 @@ export default function Navbar() {
 
     setReportsMenuAnchor(null);
     setReportsDrawerOpen(false);
+    setDrawerOpen(false);
+  };
+
+  const goToBatchAttendance = (batchId) => {
+    router.push(`/teacher/attendance?batch=${batchId}`);
+
+    setBatchesMenuAnchor(null);
+    setBatchesDrawerOpen(false);
     setDrawerOpen(false);
   };
 
@@ -674,6 +707,91 @@ export default function Navbar() {
                         fontSize: "0.85rem",
                       }}
                     />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {/* ===================================================
+            MOBILE ATTENDANCE (BATCHES)
+        =================================================== */}
+
+        {showBatchesMenu && (
+          <>
+            <ListItemButton
+              onClick={() => setBatchesDrawerOpen((p) => !p)}
+              sx={{
+                mx: 1,
+                my: 0.35,
+                minHeight: 44,
+                borderRadius: 1.5,
+                color: "#202020",
+
+                "&:hover": {
+                  bgcolor: "rgba(23, 43, 143, 0.06)",
+                },
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: "rgba(23, 43, 143, 0.85)",
+                }}
+              >
+                <ChecklistRtl />
+              </ListItemIcon>
+
+              <ListItemText
+                primary="Attendance"
+                primaryTypographyProps={{
+                  fontWeight: 500,
+                  fontSize: "0.9rem",
+                }}
+              />
+
+              {batchesDrawerOpen ? (
+                <ExpandLess fontSize="small" sx={{ color: BLUE }} />
+              ) : (
+                <ExpandMore fontSize="small" sx={{ color: BLUE }} />
+              )}
+            </ListItemButton>
+
+            <Collapse in={batchesDrawerOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {myBatches.map((b) => (
+                  <ListItemButton
+                    key={b._id}
+                    onClick={() => goToBatchAttendance(b._id)}
+                    sx={{
+                      pl: 5,
+                      mx: 1,
+                      my: 0.2,
+                      minHeight: 40,
+                      borderRadius: 1.5,
+                      color: "#333333",
+
+                      "&:hover": {
+                        bgcolor: "rgba(23, 43, 143, 0.06)",
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 32,
+                        color: BLUE,
+                      }}
+                    >
+                      <ChecklistRtl fontSize="small" />
+                    </ListItemIcon>
+
+                 <ListItemText
+  primary={`${b.course?.name || "Unknown Course"} — ${b.batchName || "Unnamed Batch"}`}
+  primaryTypographyProps={{
+    fontSize: "0.85rem",
+  }}
+/>
                   </ListItemButton>
                 ))}
               </List>
@@ -927,7 +1045,7 @@ export default function Navbar() {
                 —&nbsp;
                 {user.role === "superadmin"
                   ? "Super Admin"
-                  : "Duty Officer Checklist"}
+                  : "Duty Officer "}
               </Typography>
             </Box>
           </Box>
@@ -1180,6 +1298,149 @@ export default function Navbar() {
                         </ListItemIcon>
 
                         {f.title}
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                </>
+              )}
+
+              {/* =================================================
+                  DESKTOP ATTENDANCE (BATCHES)
+              ================================================= */}
+
+              {showBatchesMenu && (
+                <>
+                  <Box
+                    onClick={(e) => setBatchesMenuAnchor(e.currentTarget)}
+                    sx={{
+                      position: "relative",
+
+                      cursor: "pointer",
+
+                      display: "flex",
+                      alignItems: "center",
+
+                      gap: 0.3,
+
+                      px: {
+                        sm: 1.05,
+                        md: 1.25,
+                      },
+
+                      height: 64,
+
+                      mx: 0.1,
+
+                      fontSize: {
+                        sm: "0.79rem",
+                        md: "0.85rem",
+                      },
+
+                      fontWeight: 500,
+
+                      color: "#252525",
+
+                      whiteSpace: "nowrap",
+
+                      flexShrink: 0,
+
+                      "&:hover": {
+                        color: BLUE,
+                      },
+
+                      "&::after": {
+                        content: '""',
+
+                        position: "absolute",
+
+                        left: 8,
+                        right: 8,
+                        bottom: 0,
+
+                        height: 3,
+
+                        bgcolor: BLUE,
+
+                        transform: batchesMenuAnchor
+                          ? "scaleX(1)"
+                          : "scaleX(0)",
+
+                        transition: "transform 0.22s ease",
+
+                        borderRadius: "3px 3px 0 0",
+                      },
+
+                      "&:hover::after": {
+                        transform: "scaleX(1)",
+                      },
+                    }}
+                  >
+                    Attendance
+                    {batchesMenuAnchor ? (
+                      <ExpandLess
+                        sx={{
+                          fontSize: 18,
+                          color: BLUE,
+                        }}
+                      />
+                    ) : (
+                      <ExpandMore
+                        sx={{
+                          fontSize: 18,
+                          color: "#555555",
+                        }}
+                      />
+                    )}
+                  </Box>
+
+                  <Menu
+                    anchorEl={batchesMenuAnchor}
+                    open={!!batchesMenuAnchor}
+                    onClose={() => setBatchesMenuAnchor(null)}
+                    anchorOrigin={{
+                      vertical: "bottom",
+                      horizontal: "left",
+                    }}
+                    transformOrigin={{
+                      vertical: "top",
+                      horizontal: "left",
+                    }}
+                    PaperProps={{
+                      elevation: 4,
+                      sx: {
+                        mt: 1,
+
+                        minWidth: 210,
+
+                        borderRadius: 1.5,
+
+                        border: "1px solid rgba(0,0,0,0.06)",
+                      },
+                    }}
+                  >
+                    {myBatches.map((b) => (
+                      <MenuItem
+                        key={b._id}
+                        onClick={() => goToBatchAttendance(b._id)}
+                        sx={{
+                          fontSize: "0.87rem",
+
+                          "&:hover": {
+                            bgcolor: "rgba(23, 43, 143, 0.07)",
+                            color: BLUE,
+                          },
+                        }}
+                      >
+                      <ListItemIcon
+  sx={{
+    minWidth: 32,
+    color: BLUE,
+  }}
+>
+  <ChecklistRtl fontSize="small" />
+</ListItemIcon>
+
+{b.course?.name || "Unknown Course"} — {b.batchName || "Unnamed Batch"}
                       </MenuItem>
                     ))}
                   </Menu>

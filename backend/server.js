@@ -138,6 +138,9 @@ app.use("/api/forms", require("./routes/formRoutes"));
 app.use("/api/notices", noticeRoutes);
 app.use("/api/dynamic-reports", require("./routes/dynamicReportRoutes"));
 app.use("/api/inspection-reports", require("./routes/inspectionReportRoutes"));
+app.use("/api/courses", require("./routes/courseRoutes"));
+app.use("/api/batches", require("./routes/batchRoutes"));
+app.use("/api/attendance", require("./routes/attendanceRoutes"));
 /* =========================
   ERROR HANDLER
 ========================= */
