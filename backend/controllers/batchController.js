@@ -27,7 +27,12 @@ const getBatchById = async (req, res) => {
 
 // POST /api/batches  (superadmin)
 const createBatch = async (req, res) => {
-  const { course, batchName, sanctionedSeats, registeredCount, assignedTeachers } = req.body;
+  const {
+    course, batchName, sanctionedSeats, registeredCount,
+    admissionCount, dropoutCompletionCount, maleRegistered, femaleRegistered,
+    assignedTeachers,
+  } = req.body;
+
   if (!course || !batchName) {
     return res.status(400).json({ message: "Course and batch name are required" });
   }
@@ -39,6 +44,10 @@ const createBatch = async (req, res) => {
     course, batchName,
     sanctionedSeats: sanctionedSeats || 0,
     registeredCount: registeredCount || 0,
+    admissionCount: admissionCount || 0,
+    dropoutCompletionCount: dropoutCompletionCount || 0,
+    maleRegistered: maleRegistered || 0,
+    femaleRegistered: femaleRegistered || 0,
     assignedTeachers: assignedTeachers || [],
   });
   const populated = await populateBatch(Batch.findById(batch._id));
@@ -47,7 +56,12 @@ const createBatch = async (req, res) => {
 
 // PUT /api/batches/:id  (superadmin)
 const updateBatch = async (req, res) => {
-  const { course, batchName, sanctionedSeats, registeredCount, assignedTeachers, active } = req.body;
+  const {
+    course, batchName, sanctionedSeats, registeredCount,
+    admissionCount, dropoutCompletionCount, maleRegistered, femaleRegistered,
+    assignedTeachers, active,
+  } = req.body;
+
   const batch = await Batch.findById(req.params.id);
   if (!batch) return res.status(404).json({ message: "Batch not found" });
 
@@ -55,6 +69,10 @@ const updateBatch = async (req, res) => {
   if (batchName !== undefined) batch.batchName = batchName;
   if (sanctionedSeats !== undefined) batch.sanctionedSeats = sanctionedSeats;
   if (registeredCount !== undefined) batch.registeredCount = registeredCount;
+  if (admissionCount !== undefined) batch.admissionCount = admissionCount;
+  if (dropoutCompletionCount !== undefined) batch.dropoutCompletionCount = dropoutCompletionCount;
+  if (maleRegistered !== undefined) batch.maleRegistered = maleRegistered;
+  if (femaleRegistered !== undefined) batch.femaleRegistered = femaleRegistered;
   if (assignedTeachers !== undefined) batch.assignedTeachers = assignedTeachers;
   if (active !== undefined) batch.active = active;
 

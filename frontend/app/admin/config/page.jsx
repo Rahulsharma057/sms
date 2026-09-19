@@ -6,14 +6,16 @@ import {
   DialogContent, DialogActions, TextField, Chip, Stack, IconButton, MenuItem,
   Select, Checkbox, ListItemText as MuiListItemText,
 } from "@mui/material";
-import { Add, DeleteOutline, Edit } from "@mui/icons-material";
+import { Add, DeleteOutline, Edit, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import Navbar from "../../../components/Navbar";
 import api from "../../../lib/api";
 
 const emptyBatchForm = {
-  course: "", batchName: "", sanctionedSeats: "", registeredCount: "", assignedTeachers: [],
+  course: "", batchName: "", sanctionedSeats: "", registeredCount: "",
+  admissionCount: "", dropoutCompletionCount: "", maleRegistered: "", femaleRegistered: "",
+  assignedTeachers: [],
 };
 
 function ConfigInner() {
@@ -31,6 +33,7 @@ function ConfigInner() {
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchForm, setBatchForm] = useState(emptyBatchForm);
+  const [showOptionalFields, setShowOptionalFields] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -90,6 +93,7 @@ function ConfigInner() {
 
   const openBatchDialog = (batch = null) => {
     setEditingBatch(batch);
+    setShowOptionalFields(false);
     setBatchForm(
       batch
         ? {
@@ -97,6 +101,10 @@ function ConfigInner() {
             batchName: batch.batchName,
             sanctionedSeats: batch.sanctionedSeats,
             registeredCount: batch.registeredCount,
+            admissionCount: batch.admissionCount || "",
+            dropoutCompletionCount: batch.dropoutCompletionCount || "",
+            maleRegistered: batch.maleRegistered || "",
+            femaleRegistered: batch.femaleRegistered || "",
             assignedTeachers: batch.assignedTeachers?.map((t) => t._id) || [],
           }
         : emptyBatchForm
@@ -113,6 +121,10 @@ function ConfigInner() {
       batchName: batchForm.batchName.trim(),
       sanctionedSeats: Number(batchForm.sanctionedSeats) || 0,
       registeredCount: Number(batchForm.registeredCount) || 0,
+      admissionCount: Number(batchForm.admissionCount) || 0,
+      dropoutCompletionCount: Number(batchForm.dropoutCompletionCount) || 0,
+      maleRegistered: Number(batchForm.maleRegistered) || 0,
+      femaleRegistered: Number(batchForm.femaleRegistered) || 0,
       assignedTeachers: batchForm.assignedTeachers,
     };
     try {
@@ -145,6 +157,9 @@ function ConfigInner() {
     <Box sx={{ bgcolor: "#faf9fb", minHeight: "100vh" }}>
       <Navbar />
       <Container maxWidth="lg" sx={{ py: 3 }}>
+        <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+          Sleepwell Foundation
+        </Typography>
         <Typography variant="h5" fontWeight={800} mb={2}>Attendance Configuration</Typography>
 
         <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 2.5, overflow: "hidden" }}>
@@ -278,6 +293,31 @@ function ConfigInner() {
               onChange={(e) => setBatchForm((p) => ({ ...p, sanctionedSeats: e.target.value }))} />
             <TextField label="Registered Students" type="number" fullWidth value={batchForm.registeredCount}
               onChange={(e) => setBatchForm((p) => ({ ...p, registeredCount: e.target.value }))} />
+
+            <Button
+              size="small"
+              onClick={() => setShowOptionalFields((p) => !p)}
+              endIcon={showOptionalFields ? <ExpandLess /> : <ExpandMore />}
+              sx={{ alignSelf: "flex-start", textTransform: "none", color: "#7e22ce", px: 0.5 }}
+            >
+              {showOptionalFields ? "Hide" : "Show"} optional details (Admission, Dropout, Gender split)
+            </Button>
+
+            {showOptionalFields && (
+              <Stack spacing={1.8} sx={{ pl: 1.5, borderLeft: "2px solid #f3e8ff" }}>
+                <TextField label="Admission (optional)" type="number" fullWidth value={batchForm.admissionCount}
+                  onChange={(e) => setBatchForm((p) => ({ ...p, admissionCount: e.target.value }))} />
+                <TextField label="Dropout / Course Completion (optional)" type="number" fullWidth value={batchForm.dropoutCompletionCount}
+                  onChange={(e) => setBatchForm((p) => ({ ...p, dropoutCompletionCount: e.target.value }))} />
+                <Stack direction="row" spacing={1.5}>
+                  <TextField label="Male Registered (optional)" type="number" fullWidth value={batchForm.maleRegistered}
+                    onChange={(e) => setBatchForm((p) => ({ ...p, maleRegistered: e.target.value }))} />
+                  <TextField label="Female Registered (optional)" type="number" fullWidth value={batchForm.femaleRegistered}
+                    onChange={(e) => setBatchForm((p) => ({ ...p, femaleRegistered: e.target.value }))} />
+                </Stack>
+              </Stack>
+            )}
+
             <Select
               multiple
               value={batchForm.assignedTeachers}

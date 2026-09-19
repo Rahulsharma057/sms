@@ -120,18 +120,21 @@ const getDailySheet = async (req, res) => {
   const byBatch = {};
   attendanceForDate.forEach((a) => { byBatch[String(a.batch)] = a; });
 
-  const sheet = batches.map((b, idx) => {
+  const sheet = batches.map((b) => {
     const a = byBatch[String(b._id)];
     const boysPresent = a?.boysPresent ?? null;
     const girlsPresent = a?.girlsPresent ?? null;
     const totalPresent = a ? a.boysPresent + a.girlsPresent : null;
     return {
-      sNo: idx + 1,
       faculty: b.assignedTeachers?.map((t) => t.name).join(", ") || "-",
       course: b.course?.name || "-",
       batch: b.batchName,
       sanctioned: b.sanctionedSeats,
       registered: b.registeredCount,
+      admission: b.admissionCount || 0,
+      dropoutCompletion: b.dropoutCompletionCount || 0,
+      maleRegistered: b.maleRegistered || 0,
+      femaleRegistered: b.femaleRegistered || 0,
       boysPresent,
       girlsPresent,
       totalPresent,
@@ -143,9 +146,33 @@ const getDailySheet = async (req, res) => {
 
   // Submitted batches pehle, phir jo abhi tak mark nahi hui
   sheet.sort((a, b) => (a.marked === b.marked ? 0 : a.marked ? -1 : 1));
-  sheet.forEach((row, i) => { row.sNo = i + 1; }); // sort ke baad S.No dobara number karo
+  sheet.forEach((row, i) => { row.sNo = i + 1; });
 
-  res.json({ date, rows: sheet });
+  // ---- TOTALS ROW (admin ke liye niche summary) ----
+  const totals = sheet.reduce(
+    (acc, r) => {
+      acc.sanctioned += r.sanctioned || 0;
+      acc.registered += r.registered || 0;
+      acc.admission += r.admission || 0;
+      acc.dropoutCompletion += r.dropoutCompletion || 0;
+      acc.maleRegistered += r.maleRegistered || 0;
+      acc.femaleRegistered += r.femaleRegistered || 0;
+      acc.boysPresent += r.boysPresent || 0;
+      acc.girlsPresent += r.girlsPresent || 0;
+      acc.totalPresent += r.totalPresent || 0;
+      acc.batchesMarked += r.marked ? 1 : 0;
+      acc.batchesTotal += 1;
+      return acc;
+    },
+    {
+      sanctioned: 0, registered: 0, admission: 0, dropoutCompletion: 0,
+      maleRegistered: 0, femaleRegistered: 0, boysPresent: 0, girlsPresent: 0,
+      totalPresent: 0, batchesMarked: 0, batchesTotal: 0,
+    }
+  );
+  totals.percentage = computePercentage(totals.totalPresent, totals.registered);
+
+  res.json({ date, rows: sheet, totals });
 };
 // GET /api/attendance/my-status?date=YYYY-MM-DD  (teacher — which of my batches are pending today)
 const getMyBatchesStatus = async (req, res) => {
